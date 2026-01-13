@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>ماريو بيوتي صالون | تسجيل شكوى</title>
+
+<!-- Cairo Font -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
+
+<style>
+/* ================== SOFT PINK THEME ================== */
+:root{
+  --bg1:#fff5fa;
+  --bg2:#fdeaf3;
+
+  --card:#ffffff;
+  --text:#3a1f2b;
+  --muted:rgba(58,31,43,.6);
+  --line:rgba(0,0,0,.08);
+
+  --p1:#ffb3d9;
+  --p2:#ffc7e5;
+  --p3:#ffd9ee;
+
+  --ok:#2fbf9b;
+  --err:#e0577a;
+
+  --shadow:0 18px 40px rgba(0,0,0,.10);
+}
+
+*{box-sizing:border-box}
+html,body{height:100%}
+
+body{
+  margin:0;
+  font-family:"Cairo",sans-serif;
+  color:var(--text);
+  background:
+    radial-gradient(900px 500px at 10% 10%, rgba(255,179,217,.45), transparent 60%),
+    radial-gradient(900px 500px at 90% 20%, rgba(255,199,229,.45), transparent 60%),
+    linear-gradient(180deg,var(--bg1),var(--bg2));
+}
+
+/* ================== LAYOUT ================== */
+.wrap{
+  min-height:100%;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:22px;
+}
+
+.card{
+  width:min(960px,100%);
+  background:var(--card);
+  border-radius:28px;
+  box-shadow:var(--shadow);
+  padding:22px;
+}
+
+/* ================== SALON NAME ================== */
+.salon-name{
+  text-align:center;
+  font-size:28px;
+  font-weight:800;
+  color:#b03060;
+  margin-bottom:14px;
+  letter-spacing:.3px;
+}
+
+/* ================== HEADER ================== */
+.header{
+  display:flex;
+  align-items:center;
+  gap:14px;
+  padding-bottom:14px;
+  border-bottom:1px solid var(--line);
+}
+
+.logo-ring{
+  width:88px;height:88px;
+  border-radius:50%;
+  background:linear-gradient(135deg,var(--p1),var(--p2),var(--p3));
+  padding:3px;
+}
+
+.logo{
+  width:100%;height:100%;
+  border-radius:50%;
+  object-fit:contain;
+  background:#ffffff;
+  padding:10px;
+  border:1px solid rgba(0,0,0,.06);
+}
+
+.header h1{
+  margin:0;
+  font-size:24px;
+  font-weight:800;
+}
+.header p{
+  margin:6px 0 0;
+  color:var(--muted);
+  font-weight:600;
+}
+
+/* ================== FORM ================== */
+form{margin-top:18px}
+
+.grid{
+  display:grid;
+  grid-template-columns:repeat(2,1fr);
+  gap:14px;
+}
+
+.field{display:flex;flex-direction:column;gap:6px}
+.field-full{grid-column:1/-1}
+
+label{
+  font-weight:700;
+  font-size:14px;
+}
+
+.req{color:var(--err)}
+
+input,textarea,select{
+  padding:12px;
+  border-radius:16px;
+  border:1px solid rgba(0,0,0,.14);
+  font-family:"Cairo",sans-serif;
+  font-size:14px;
+}
+
+input:focus,textarea:focus,select:focus{
+  outline:none;
+  border-color:#ff8fc0;
+}
+
+textarea{min-height:150px}
+
+.hint{
+  font-size:12px;
+  color:var(--muted);
+}
+
+/* ================== ACTIONS ================== */
+.actions{
+  display:flex;
+  gap:14px;
+  margin-top:18px;
+  align-items:center;
+}
+
+button{
+  border:none;
+  border-radius:20px;
+  padding:14px;
+  font-weight:800;
+  cursor:pointer;
+  font-family:"Cairo",sans-serif;
+}
+
+.btn-main{
+  background:linear-gradient(135deg,var(--p1),var(--p2),var(--p3));
+  color:#3a1f2b;
+  min-width:220px;
+}
+
+.status{
+  font-size:13px;
+  font-weight:600;
+}
+.status.err{color:var(--err)}
+.status.ok{color:var(--ok)}
+
+/* ================== SUCCESS ================== */
+.success{
+  display:none;
+  text-align:center;
+}
+.success h2{
+  margin-top:16px;
+  font-weight:800;
+}
+.success p{
+  color:var(--muted);
+  font-weight:600;
+  margin-bottom:16px;
+}
+
+/* ================== MOBILE ================== */
+@media(max-width:720px){
+  .grid{grid-template-columns:1fr}
+  .actions{flex-direction:column}
+  button{width:100%}
+  .salon-name{font-size:24px}
+}
+</style>
+</head>
+
+<body>
+<div class="wrap">
+  <div class="card">
+
+    <!-- SALON NAME -->
+    <div class="salon-name">ماريو بيوتي صالون</div>
+
+    <!-- FORM -->
+    <div id="formView">
+      <div class="header">
+        <div class="logo-ring">
+          <img src="images/logo.png" class="logo" alt="Mario Beauty Salon">
+        </div>
+        <div>
+          <h1>تسجيل شكوى</h1>
+          <p>يسعدنا استقبال ملاحظاتك لتحسين مستوى الخدمة</p>
+        </div>
+      </div>
+
+      <form id="complaintForm">
+        <div class="grid">
+
+          <div class="field">
+            <label>اسم العميلة <span class="req">*</span></label>
+            <input id="customerName">
+          </div>
+
+          <div class="field">
+            <label>رقم الموبايل <span class="req">*</span></label>
+            <input id="mobile">
+          </div>
+
+          <div class="field">
+            <label>الخدمة</label>
+            <select id="serviceSelect"></select>
+            <span class="hint">اختياري</span>
+          </div>
+
+          <div class="field">
+            <label>الموظف / الموظفة</label>
+            <select id="employeeSelect"></select>
+            <span class="hint">اختياري</span>
+          </div>
+
+          <div class="field">
+            <label>تاريخ المشكلة</label>
+            <input type="date" id="incidentDate">
+          </div>
+
+          <div class="field field-full">
+            <label>وصف المشكلة <span class="req">*</span></label>
+            <textarea id="description"></textarea>
+          </div>
+
+        </div>
+
+        <div class="actions">
+          <button class="btn-main">إرسال الشكوى</button>
+          <div id="status" class="status"></div>
+        </div>
+      </form>
+    </div>
+
+    <!-- SUCCESS -->
+    <div id="successView" class="success">
+      <div class="header">
+        <div class="logo-ring">
+          <img src="images/logo.png" class="logo">
+        </div>
+      </div>
+      <h2>تم استلام الشكوى بنجاح 🌸</h2>
+      <p>شكواكِ محل اهتمام إدارة ماريو بيوتي صالون وسيتم التواصل قريبًا</p>
+      <button class="btn-main" onclick="location.reload()">تسجيل شكوى أخرى</button>
+    </div>
+
+  </div>
+</div>
+
+<script>
+const SUPABASE_URL = "https://sdmttqafkzovomoqhncj.supabase.co";
+    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNkbXR0cWFma3pvdm9tb3FobmNqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDIzMDYxNTMsImV4cCI6MjA1Nzg4MjE1M30.RLjTcLi9ZMOIx4VtEPTtAmrsROoG-_B4cw5jHcL4rJ8";
+
+
+const form = document.getElementById("complaintForm");
+const statusEl = document.getElementById("status");
+
+async function get(path){
+  const r = await fetch(SUPABASE_URL + path,{
+    headers:{apikey:SUPABASE_ANON_KEY,Authorization:`Bearer ${SUPABASE_ANON_KEY}`}
+  });
+  return r.json();
+}
+
+async function post(path,data){
+  return fetch(SUPABASE_URL + path,{
+    method:"POST",
+    headers:{
+      "Content-Type":"application/json",
+      apikey:SUPABASE_ANON_KEY,
+      Authorization:`Bearer ${SUPABASE_ANON_KEY}`,
+      Prefer:"return=minimal"
+    },
+    body:JSON.stringify(data)
+  });
+}
+
+async function loadData(){
+  const services = await get(`/rest/v1/services?select=Service_ID,Service_Name&Active=eq.true`);
+  serviceSelect.innerHTML = `<option value="">(اختياري)</option>` +
+    services.map(s=>`<option value="${s.Service_ID}">${s.Service_Name}</option>`).join("");
+
+  const employees = await get(`/rest/v1/employees?select=id,empName&active=eq.true`);
+  employeeSelect.innerHTML = `<option value="">(اختياري)</option>` +
+    employees.map(e=>`<option value="${e.id}">${e.empName}</option>`).join("");
+}
+
+form.onsubmit = async e=>{
+  e.preventDefault();
+  statusEl.textContent="";
+
+  if(!customerName.value.trim())
+    return statusEl.textContent="اسم العميلة مطلوب";
+
+  if(!mobile.value.trim())
+    return statusEl.textContent="رقم الموبايل مطلوب";
+
+  if(!description.value.trim())
+    return statusEl.textContent="وصف المشكلة مطلوب";
+
+  statusEl.textContent="جاري الإرسال...";
+
+  await post("/rest/v1/complaints",{
+    customer_name:customerName.value.trim(),
+    mobile:mobile.value.trim(),
+    description:description.value.trim(),
+    service_id:serviceSelect.value||null,
+    employee_id:employeeSelect.value||null,
+    incident_date:incidentDate.value||null,
+    source:"web"
+  });
+
+  formView.style.display="none";
+  successView.style.display="block";
+};
+
+loadData();
+</script>
+</body>
+</html>
