@@ -12,17 +12,18 @@
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     
-    <!-- ربط ملف CSS -->
-    <link rel="stylesheet" href="index.css">
-    
     <!-- الخطوط -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@200..1000&family=Playfair+Display:ital,wght@0,400..900;1,400..900&display=swap" rel="stylesheet">
     
     <style>
+      /* دمج التنسيقات الأساسية هنا لتجنب طلب ملف خارجي قد يفشل */
       body {
         font-family: 'Cairo', sans-serif;
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
       }
       .font-playfair {
         font-family: 'Playfair Display', serif;
@@ -45,9 +46,7 @@
 </head>
   <body class="bg-stone-50 text-stone-900">
     <div id="root"></div>
-    
-    <!-- استدعاء ملف التطبيق الرئيسي بشكل صريح -->
-    <script type="module" src="index.tsx"></script>
+    <!-- ملاحظة: يتم استيراد ملف index.tsx تلقائياً بواسطة بيئة العمل، لا حاجة لإضافته يدوياً هنا -->
   <script type="module" src="/index.tsx"></script>
 </body>
 </html>
