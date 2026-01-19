@@ -1,0 +1,7 @@
+{
+  "name": "Mario Beauty Salon AI",
+  "description": "An elegant AI assistant for Mario Beauty Salon in Banha, providing service info, pricing, and booking assistance through voice and text.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
