@@ -1,15 +1,18 @@
 
 import React from 'react';
-import { SALON_NAME, LOCATION, OPENING_HOURS, MAP_LINK, FACEBOOK_LINK } from '../constants';
+import { SALON_NAME, LOCATION, OPENING_HOURS, MAP_LINK, FACEBOOK_LINK, LOGO_URL } from '../constants';
 
 const Footer: React.FC = () => {
   return (
     <footer className="bg-stone-900 text-white py-16">
       <div className="container mx-auto px-4">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-12 text-center md:text-right">
-          <div>
-            <h3 className="text-2xl font-playfair font-bold mb-6 text-rose-500">{SALON_NAME.split('(')[0]}</h3>
-            <p className="text-stone-400 leading-relaxed">
+          <div className="flex flex-col items-center md:items-end">
+            <div className="w-20 h-20 bg-white rounded-2xl p-2 mb-6">
+               <img src={LOGO_URL} alt="Logo" className="w-full h-full object-contain" />
+            </div>
+            <h3 className="text-2xl font-playfair font-bold mb-4 text-rose-500">{SALON_NAME.split('(')[0]}</h3>
+            <p className="text-stone-400 leading-relaxed text-sm md:text-base max-w-xs">
               وجهتكِ الأولى للجمال والأناقة في بنها. نقدم كل ما تحتاجه المرأة العصرية من عناية ودلال.
             </p>
           </div>

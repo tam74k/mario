@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { AppView } from '../types';
-import { SALON_NAME } from '../constants';
+import { SALON_NAME, LOGO_URL } from '../constants';
 
 interface HeaderProps {
   currentView: AppView;
@@ -16,8 +16,17 @@ const Header: React.FC<HeaderProps> = ({ currentView, setView }) => {
           className="cursor-pointer flex items-center gap-3"
           onClick={() => setView(AppView.LANDING)}
         >
-          <div className="w-12 h-12 bg-rose-500 rounded-full flex items-center justify-center text-white font-playfair text-xl shadow-md">
-            M
+          <div className="w-14 h-14 bg-stone-50 rounded-full flex items-center justify-center p-1 shadow-sm border border-rose-100 overflow-hidden">
+            <img 
+              src={LOGO_URL} 
+              alt="Mario Beauty Salon Logo" 
+              className="w-full h-full object-contain"
+              onError={(e) => {
+                // Fallback if logo fails to load
+                (e.target as HTMLImageElement).style.display = 'none';
+                (e.target as HTMLImageElement).parentElement!.innerHTML = '<span class="text-rose-500 font-bold font-playfair text-xl">M</span>';
+              }}
+            />
           </div>
           <h1 className="text-xl md:text-2xl font-playfair font-bold text-stone-800 hidden sm:block">
             {SALON_NAME.split('(')[0]}
@@ -27,13 +36,13 @@ const Header: React.FC<HeaderProps> = ({ currentView, setView }) => {
         <nav className="flex items-center gap-2 md:gap-6">
           <button
             onClick={() => setView(AppView.LANDING)}
-            className={`px-3 py-2 text-sm md:text-base transition-colors ${currentView === AppView.LANDING ? 'text-rose-600 font-bold border-b-2 border-rose-600' : 'text-stone-600 hover:text-rose-500'}`}
+            className={`px-3 py-2 text-sm md:text-base transition-colors ${currentView === AppView.LANDING ? 'text-rose-600 font-bold border-b-2 border-rose-600' : 'text-stone-600 hover:text-rose-50'}`}
           >
             الرئيسية
           </button>
           <button
             onClick={() => setView(AppView.SERVICES)}
-            className={`px-3 py-2 text-sm md:text-base transition-colors ${currentView === AppView.SERVICES ? 'text-rose-600 font-bold border-b-2 border-rose-600' : 'text-stone-600 hover:text-rose-500'}`}
+            className={`px-3 py-2 text-sm md:text-base transition-colors ${currentView === AppView.SERVICES ? 'text-rose-600 font-bold border-b-2 border-rose-600' : 'text-stone-600 hover:text-rose-50'}`}
           >
             الخدمات
           </button>

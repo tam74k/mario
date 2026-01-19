@@ -6,6 +6,8 @@ export const LOCATION = "بنها، مصر";
 export const OPENING_HOURS = "يومياً من الساعة 12 ظهراً حتى 10 مساءً";
 export const MAP_LINK = "https://share.google/GbZKw35teRAkQxUew";
 export const FACEBOOK_LINK = "https://www.facebook.com/Mariohairdesser/";
+// Placeholder for the uploaded logo. In a real environment, this would be the actual path.
+export const LOGO_URL = "https://raw.githubusercontent.com/fady-sh/mario-salon/main/logo.png"; 
 
 export const SERVICES: ServiceItem[] = [
   { name: "حمام تركي", price: 750, category: "Body Care" },
