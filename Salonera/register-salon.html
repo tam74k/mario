@@ -90,8 +90,8 @@
   <script type="module">
     import { supabase } from "./assets/supabaseClient.js";
     import { toast, qs } from "./assets/ui.js";
-    import { FN_REGISTER_SALON } from "./assets/config.js";
-
+    //import { FN_REGISTER_SALON } from "./assets/config.js";
+    import { FN_REGISTER_SALON, SUPABASE_ANON_KEY } from "./assets/config.js";
     const sb = supabase();
 
     function setLoading(isLoading){
@@ -126,20 +126,24 @@
       try{
         // 1) Call Edge Function to create: auth user + salon(pending) + branch + owner profile + role
         const res = await fetch(FN_REGISTER_SALON, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            salon_name,
-            country_code,
-            language_default,
-            timezone,
-            branch_name,
-            owner_name,
-            owner_phone: owner_phone || null,
-            owner_email,
-            owner_password
-          })
-        });
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+    "apikey": SUPABASE_ANON_KEY,
+    "Authorization": `Bearer ${SUPABASE_ANON_KEY}`,
+  },
+  body: JSON.stringify({
+    salon_name,
+    country_code,
+    language_default,
+    timezone,
+    branch_name,
+    owner_name,
+    owner_phone: owner_phone || null,
+    owner_email,
+    owner_password
+  })
+});
 
         const out = await res.json().catch(()=> ({}));
 
