@@ -75,7 +75,12 @@
       const city = qs("#city").value.trim();
 
       // Fetch salons (public listing)
-      let query = sb.from("salons").select("id,name,slug,country_code,currency_code,language_default,image_url").order("created_at", { ascending:false }).limit(60);
+     let query = sb
+  .from("salons")
+  .select("id,name,slug,country_code,currency_code,language_default,image_url")
+  .eq("account_status", "active")
+  .order("created_at", { ascending: false })
+  .limit(60);
 
       if (q) query = query.ilike("name", `%${q}%`);
       // city موجود في branches (اختياري) - فلترة بسيطة عبر join غير متاحة مباشرة في supabase-js بدون view
