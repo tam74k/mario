@@ -48,11 +48,11 @@
   <div class="toast"></div>
 
   <script type="module">
-    import { supabase } from "./assets/supabaseClient.js";
+    import { sb } from "./assets/supabaseClient.js";
+
     import { toast, qs } from "./assets/ui.js";
 
-    const sb = supabase();
-
+    
     qs("#btn").addEventListener("click", async ()=>{
       const full_name = qs("#full_name").value.trim();
       const phone = qs("#phone").value.trim();

@@ -32,11 +32,12 @@
   </div>
 
   <script type="module">
-    import { supabase } from "./assets/supabaseClient.js";
+    import { sb } from "./assets/supabaseClient.js";
+
     import { toast, qs, fmtDateTime } from "./assets/ui.js";
     import { requireAuth } from "./assets/auth.js";
 
-    const sb = supabase();
+    
     await requireAuth();
 
     async function load(){

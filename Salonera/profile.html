@@ -55,11 +55,11 @@
 
   <script type="module">
     import { requireAuth, signOut, getUserKind } from "./assets/auth.js";
-    import { supabase } from "./assets/supabaseClient.js";
+    import { sb } from "./assets/supabaseClient.js";
     import { toast, qs } from "./assets/ui.js";
 
     await requireAuth();
-    const sb = supabase();
+    
 
     const user = await getUserKind();
     qs("#who").textContent = user.kind === "staff" ? "موظف/إدارة" : user.kind === "customer" ? "عميل" : "حساب";

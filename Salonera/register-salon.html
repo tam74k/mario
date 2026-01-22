@@ -88,11 +88,12 @@
   <div class="toast"></div>
 
   <script type="module">
-    import { supabase } from "./assets/supabaseClient.js";
+   import { sb } from "./assets/supabaseClient.js";
+
     import { toast, qs } from "./assets/ui.js";
     //import { FN_REGISTER_SALON } from "./assets/config.js";
     import { FN_REGISTER_SALON, SUPABASE_ANON_KEY } from "./assets/config.js";
-    const sb = supabase();
+
 
     function setLoading(isLoading){
       const btn = qs("#btn");

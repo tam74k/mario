@@ -49,12 +49,12 @@
   </div>
 
   <script type="module">
-    import { supabase } from "./assets/supabaseClient.js";
+    import { sb } from "./assets/supabaseClient.js";
     import { FN_AVAILABILITY, FN_CREATE_BOOKING } from "./assets/config.js";
     import { toast, qs } from "./assets/ui.js";
     import { requireAuth } from "./assets/auth.js";
 
-    const sb = supabase();
+ 
     await requireAuth(); // الحجز يتطلب تسجيل دخول
 
     const params = new URLSearchParams(location.search);

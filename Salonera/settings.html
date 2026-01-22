@@ -109,12 +109,12 @@
 
   <script type="module">
     import { requireAuth, getUserKind } from "./assets/auth.js";
-    import { supabase } from "./assets/supabaseClient.js";
+   
     import { uploadImage } from "./assets/storage.js";
     import { toast, qs } from "./assets/ui.js";
 
     await requireAuth();
-    const sb = supabase();
+   
     const user = await getUserKind();
     if (user.kind !== "staff"){ toast("هذه الصفحة للموظفين فقط", "error"); setTimeout(()=>location.href="profile.html",700); }
     qs("#ctx").textContent = `مرحبًا ${user.full_name ?? ""}`;

@@ -58,10 +58,11 @@
   </div>
 
   <script type="module">
-    import { supabase } from "./assets/supabaseClient.js";
+    import { sb } from "./assets/supabaseClient.js";
+
     import { toast, qs } from "./assets/ui.js";
 
-    const sb = supabase();
+    
     const params = new URLSearchParams(location.search);
     const slug = params.get("slug");
     if (!slug) { toast("رابط غير صحيح", "error"); }

@@ -62,11 +62,11 @@
 
   <script type="module">
     import { requireAuth, getUserKind } from "./assets/auth.js";
-    import { supabase } from "./assets/supabaseClient.js";
+    import { sb } from "./assets/supabaseClient.js";
     import { toast, qs, fmtDateTime } from "./assets/ui.js";
 
     await requireAuth();
-    const sb = supabase();
+    
 
     const user = await getUserKind();
     if (user.kind !== "staff"){

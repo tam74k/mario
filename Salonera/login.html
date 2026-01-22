@@ -67,11 +67,12 @@
   <div class="toast"></div>
 
   <script type="module">
-    import { supabase } from "./assets/supabaseClient.js";
+    import { sb } from "./assets/supabaseClient.js";
+
     import { toast, qs } from "./assets/ui.js";
     import { getUserKind } from "./assets/auth.js";
 
-    const sb = supabase();
+    
     let target = "customer";
 
     const hint = qs("#tabHint");

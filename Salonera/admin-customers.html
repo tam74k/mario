@@ -47,11 +47,11 @@
 
   <script type="module">
     import { requireAuth } from "./assets/auth.js";
-    import { supabase } from "./assets/supabaseClient.js";
+    import { sb } from "./assets/supabaseClient.js";
     import { toast, qs } from "./assets/ui.js";
 
     await requireAuth();
-    const sb = supabase();
+   
 
     const { data: user } = await sb.auth.getUser();
     const uid = user?.user?.id;

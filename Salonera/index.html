@@ -50,10 +50,10 @@
   </div>
 
   <script type="module">
-    import { supabase } from "./assets/supabaseClient.js";
+    import { sb } from "./assets/supabaseClient.js";
     import { toast, qs } from "./assets/ui.js";
 
-    const sb = supabase();
+  
     const list = qs("#list");
 
     function card(s){
