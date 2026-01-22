@@ -8,3 +8,4 @@ export const RESET_PASSWORD_REDIRECT = `${location.origin}/reset-password.html`;
 // Edge Functions (اختياري) - ضعها إذا كنت نشرت availability/create-booking
 export const FN_AVAILABILITY = `${SUPABASE_URL}/functions/v1/availability`;
 export const FN_CREATE_BOOKING = `${SUPABASE_URL}/functions/v1/create-booking`;
+export const FN_REGISTER_SALON = `${SUPABASE_URL}/functions/v1/register-salon`;
