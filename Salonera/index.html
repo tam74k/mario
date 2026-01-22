@@ -56,19 +56,32 @@
   
     const list = qs("#list");
 
-    function card(s){
-      const img = s.image_url ? `<img class="card-img" src="${s.image_url}" alt="صورة الصالون">` : `<div class="card-img center muted">بدون صورة</div>`;
-      return `
-        <a class="card card-pad" href="salon.html?slug=${encodeURIComponent(s.slug)}">
-          ${img}
-          <div style="height:10px"></div>
-          <div style="font-weight:900">${s.name}</div>
-          <div class="muted small">${s.country_code} • ${s.currency_code} • ${s.language_default.toUpperCase()}</div>
-          <div style="height:10px"></div>
-          <span class="pill">عرض التفاصيل والحجز</span>
-        </a>
-      `;
-    }
+   function card(s){
+  const img = s?.image_url
+    ? `<img class="card-img" src="${s.image_url}" alt="صورة الصالون">`
+    : `<div class="card-img center muted">بدون صورة</div>`;
+
+  const name = s?.name ?? "صالون";
+  const slug = s?.slug ? encodeURIComponent(s.slug) : "#";
+
+  const country = (s?.country_code ?? "").toString().toUpperCase() || "—";
+  const currency = (s?.currency_code ?? "").toString().toUpperCase() || "—";
+  const lang = (s?.language_default ?? "").toString().toUpperCase() || "—";
+
+  return `
+    <a class="card card-pad" href="salon.html?slug=${slug}">
+      ${img}
+      <div style="height:10px"></div>
+      <div style="font-weight:900">${name}</div>
+      <div class="muted small">
+        ${country} • ${currency} • ${lang}
+      </div>
+      <div style="height:10px"></div>
+      <span class="pill">عرض التفاصيل والحجز</span>
+    </a>
+  `;
+}
+
 
     async function load(){
       const q = qs("#q").value.trim();
