@@ -20,7 +20,9 @@
   <div class="container">
     <div class="hero">
       <div style="font-weight:900;font-size:20px">سجّل صالونك</div>
-      <div class="muted">سيتم إنشاء الصالون بحالة <b>pending</b>. بعد موافقة الإدارة يبدأ فعليًا في الباقة التجريبية المحدودة.</div>
+      <div class="muted">
+        سيتم إنشاء الصالون بحالة <b>pending</b>. بعد موافقة الإدارة يبدأ فعليًا في الباقة التجريبية المحدودة.
+      </div>
     </div>
 
     <div style="height:12px"></div>
@@ -76,9 +78,8 @@
         <button id="btn" class="btn btn-primary" style="width:100%">تسجيل الصالون</button>
 
         <div style="height:10px"></div>
-        <div class="small muted">
-          <b>مهم للأمان:</b> إنشاء الصالون (salon/branch/owner role) الأفضل يتم عبر Edge Function (Service Role).
-          الواجهة هنا جاهزة + ملف SQL يضيف نظام موافقة الإدارة وبدء التجربة عند التفعيل.
+        <div class="small muted" id="hint">
+          سيتم إنشاء الحساب والصالون عبر خدمة آمنة (Edge Function).
         </div>
       </div>
     </div>
@@ -89,11 +90,14 @@
   <script type="module">
     import { supabase } from "./assets/supabaseClient.js";
     import { toast, qs } from "./assets/ui.js";
+    import { FN_REGISTER_SALON } from "./assets/config.js";
 
     const sb = supabase();
 
-    function slugify(s){
-      return (s||"").trim().toLowerCase().replace(/\s+/g,"-").replace(/[^a-z0-9\u0600-\u06FF\-]/g,"") + "-" + Math.random().toString(16).slice(2,6);
+    function setLoading(isLoading){
+      const btn = qs("#btn");
+      btn.disabled = isLoading;
+      btn.textContent = isLoading ? "جارٍ التسجيل..." : "تسجيل الصالون";
     }
 
     qs("#btn").addEventListener("click", async ()=>{
@@ -105,40 +109,61 @@
 
       const owner_name = qs("#owner_name").value.trim();
       const owner_phone = qs("#owner_phone").value.trim();
-      const email = qs("#email").value.trim();
-      const password = qs("#password").value;
+      const owner_email = qs("#email").value.trim();
+      const owner_password = qs("#password").value;
 
       if (!salon_name) return toast("اسم الصالون مطلوب", "error");
       if (!owner_name) return toast("اسم المالك مطلوب", "error");
-      if (!email) return toast("الإيميل مطلوب", "error");
-      if (!password || password.length < 6) return toast("كلمة المرور لا تقل عن 6", "error");
+      if (!owner_email) return toast("الإيميل مطلوب", "error");
+      if (!owner_password || owner_password.length < 6) return toast("كلمة المرور لا تقل عن 6", "error");
 
-      const { data, error } = await sb.auth.signUp({ email, password, options:{ data:{ full_name: owner_name } } });
-      if (error) return toast(error.message, "error");
-      const uid = data.user?.id;
+      if (!FN_REGISTER_SALON || FN_REGISTER_SALON.includes("YOUR_PROJECT_ID")){
+        return toast("عدّل assets/config.js وضع رابط مشروع Supabase ثم أعد المحاولة", "error");
+      }
+
+      setLoading(true);
 
       try{
-        const { data: salon, error: sErr } = await sb.from("salons").insert({
-          name: salon_name,
-          slug: slugify(salon_name),
-          country_code,
-          language_default,
-          timezone,
-          account_status: "pending"
-        }).select("id").single();
-        if (sErr) throw sErr;
+        // 1) Call Edge Function to create: auth user + salon(pending) + branch + owner profile + role
+        const res = await fetch(FN_REGISTER_SALON, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            salon_name,
+            country_code,
+            language_default,
+            timezone,
+            branch_name,
+            owner_name,
+            owner_phone: owner_phone || null,
+            owner_email,
+            owner_password
+          })
+        });
 
-        const { error: bErr } = await sb.from("branches").insert({ salon_id: salon.id, name: branch_name, is_active:true });
-        if (bErr) throw bErr;
+        const out = await res.json().catch(()=> ({}));
 
-        await sb.from("profiles").upsert({ user_id: uid, salon_id: salon.id, full_name: owner_name, phone: owner_phone || null }, { onConflict:"user_id" });
+        if (!res.ok){
+          return toast(out.error || "فشل تسجيل الصالون", "error");
+        }
 
-        try{ await sb.from("user_roles").insert({ user_id: uid, salon_id: salon.id, role:"owner" }); }catch{}
+        // 2) Login automatically
+        const { error: signErr } = await sb.auth.signInWithPassword({
+          email: owner_email,
+          password: owner_password
+        });
+        if (signErr){
+          toast("تم إنشاء الحساب لكن تعذر تسجيل الدخول تلقائيًا: " + signErr.message, "error");
+          return setTimeout(()=> location.href="login.html", 900);
+        }
 
         toast("تم تسجيل الصالون ✅ بانتظار الموافقة");
         setTimeout(()=> location.href="waiting-approval.html", 900);
+
       }catch(e){
-        toast("تم إنشاء حساب المالك لكن فشل إنشاء الصالون (يُنصح Edge Function): " + String(e?.message ?? e), "error");
+        toast(String(e?.message ?? e), "error");
+      }finally{
+        setLoading(false);
       }
     });
   </script>
