@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>تفاصيل الصالون</title>
+  <link rel="stylesheet" href="./assets/app.css" />
+</head>
+<body>
+  <div class="topbar">
+    <div class="container row-between" style="padding:14px 16px">
+      <div class="brand">تفاصيل الصالون</div>
+      <div class="row">
+<a class="btn" href="index.html">رجوع</a>
+<a class="btn" href="profile.html">حسابي</a>
+</div>
+    </div>
+  </div>
+
+  <div class="container">
+    <div id="salonCard" class="card card-pad"></div>
+
+    <div style="height:12px"></div>
+
+    <div class="grid grid-2">
+      <div class="card card-pad">
+        <div style="font-weight:900;margin-bottom:8px">الخدمات</div>
+        <div id="services" class="grid"></div>
+      </div>
+
+      <div class="card card-pad">
+        <div style="font-weight:900;margin-bottom:8px">الأخصائيات</div>
+        <div id="specialists" class="grid"></div>
+      </div>
+    </div>
+
+    <div style="height:12px"></div>
+
+    <div class="card card-pad">
+      <div style="font-weight:900;margin-bottom:8px">بدء الحجز</div>
+      <div class="muted small">اختر خدمة وأخصائية ثم انتقل للحجز.</div>
+
+      <div style="height:10px"></div>
+      <div class="grid grid-2">
+        <div>
+          <label class="label">الخدمة</label>
+          <select id="serviceSelect"></select>
+        </div>
+        <div>
+          <label class="label">الأخصائية</label>
+          <select id="specialistSelect"></select>
+        </div>
+      </div>
+
+      <div style="height:12px"></div>
+      <button id="btnGo" class="btn btn-primary">متابعة للحجز</button>
+    </div>
+  </div>
+
+  <script type="module">
+    import { supabase } from "./assets/supabaseClient.js";
+    import { toast, qs } from "./assets/ui.js";
+
+    const sb = supabase();
+    const params = new URLSearchParams(location.search);
+    const slug = params.get("slug");
+    if (!slug) { toast("رابط غير صحيح", "error"); }
+
+    function money(v){ try{ return Number(v).toFixed(2); }catch{ return v; } }
+
+    async function load(){
+      const { data: salon, error: sErr } = await sb.from("salons")
+        .select("id,name,slug,country_code,currency_code,language_default,timezone,vat_enabled,vat_rate,image_url")
+        .eq("slug", slug).single();
+
+      if (sErr) return toast("لم يتم العثور على الصالون", "error");
+
+      const img = salon.image_url ? `<img class="card-img" src="${salon.image_url}" alt="صورة الصالون">` : `<div class="card-img center muted">بدون صورة</div>`;
+      qs("#salonCard").innerHTML = `
+        <div class="grid grid-2">
+          <div>${img}</div>
+          <div>
+            <div style="font-weight:900;font-size:20px">${salon.name}</div>
+            <div class="muted small">العملة: ${salon.currency_code} • المنطقة الزمنية: ${salon.timezone}</div>
+            <div style="height:10px"></div>
+            <span class="pill">VAT: ${salon.vat_enabled ? (salon.vat_rate*100).toFixed(0)+'%' : 'غير مفعل'}</span>
+            <span class="pill">لغة: ${salon.language_default.toUpperCase()}</span>
+          </div>
+        </div>
+      `;
+
+      const { data: services, error: seErr } = await sb.from("services")
+        .select("id,name_ar,price,duration_minutes,is_active")
+        .eq("salon_id", salon.id)
+        .eq("is_active", true)
+        .order("created_at", { ascending:false });
+
+      if (seErr) return toast(seErr.message, "error");
+
+      qs("#services").innerHTML = (services ?? []).map(s => `
+        <div class="card card-pad">
+          <div style="font-weight:900">${s.name_ar}</div>
+          <div class="muted small">${money(s.price)} • ${s.duration_minutes} دقيقة</div>
+        </div>
+      `).join("") || `<div class="muted">لا توجد خدمات.</div>`;
+
+      const { data: specialists, error: spErr } = await sb.from("specialists")
+        .select("id,full_name,title,capacity_per_hour,image_url,is_active")
+        .eq("salon_id", salon.id)
+        .eq("is_active", true)
+        .order("created_at", { ascending:false });
+
+      if (spErr) return toast(spErr.message, "error");
+
+      qs("#specialists").innerHTML = (specialists ?? []).map(x => {
+        const si = x.image_url ? `<img class="card-img" style="aspect-ratio: 1/1" src="${x.image_url}" alt="صورة">` : `<div class="card-img center muted" style="aspect-ratio:1/1">بدون صورة</div>`;
+        return `
+          <div class="card card-pad">
+            ${si}
+            <div style="height:8px"></div>
+            <div style="font-weight:900">${x.full_name}</div>
+            <div class="muted small">${x.title ?? ""}</div>
+            <div style="height:8px"></div>
+            <span class="pill">سعة/ساعة: ${x.capacity_per_hour}</span>
+          </div>
+        `;
+      }).join("") || `<div class="muted">لا توجد أخصائيات.</div>`;
+
+      // Populate selects
+      const serviceSelect = qs("#serviceSelect");
+      const specialistSelect = qs("#specialistSelect");
+      serviceSelect.innerHTML = (services ?? []).map(s => `<option value="${s.id}">${s.name_ar} — ${money(s.price)} (${s.duration_minutes}د)</option>`).join("");
+      specialistSelect.innerHTML = (specialists ?? []).map(s => `<option value="${s.id}">${s.full_name}</option>`).join("");
+
+      qs("#btnGo").addEventListener("click", () => {
+        const service_id = serviceSelect.value;
+        const specialist_id = specialistSelect.value;
+        location.href = `book.html?salon_id=${salon.id}&service_id=${service_id}&specialist_id=${specialist_id}`;
+      });
+    }
+
+    load();
+  </script>
+  <div class="footer container">© PremiumVIP Booking — واجهة HTML/CSS/JS متصلة بـ Supabase</div>
+  <div class="toast"></div>
+</body>
+</html>

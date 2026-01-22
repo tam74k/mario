@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>إدارة الصالونات</title>
+  <link rel="stylesheet" href="./assets/app.css" />
+</head>
+<body>
+  <div class="topbar">
+    <div class="container row-between" style="padding:14px 16px">
+      <div class="brand">إدارة الصالونات</div>
+      <div class="row"><a class="btn" href="admin.html">رجوع</a></div>
+    </div>
+  </div>
+
+  <div class="container">
+    <div class="card card-pad">
+      <div class="row-between">
+        <div>
+          <div style="font-weight:900">قائمة الصالونات</div>
+          <div class="muted small">تفعيل/تعطيل + بدء التجربة عند التفعيل.</div>
+        </div>
+        <button class="btn" id="btnReload">تحديث</button>
+      </div>
+      <div class="hr"></div>
+
+      <div class="grid grid-2">
+        <div>
+          <label class="label">بحث بالاسم</label>
+          <input id="q" class="input" placeholder="مثال: روز" />
+        </div>
+        <div>
+          <label class="label">الحالة</label>
+          <select id="status">
+            <option value="">الكل</option>
+            <option value="pending">pending</option>
+            <option value="active">active</option>
+            <option value="disabled">disabled</option>
+          </select>
+        </div>
+      </div>
+      <div style="height:10px"></div>
+      <button class="btn" id="btnSearch">بحث</button>
+
+      <div style="height:12px"></div>
+      <div id="list"></div>
+
+      <div class="small muted">* التفعيل/التعطيل عبر RPC: <b>approve_salon</b> و <b>disable_salon</b> (ملف SQL مرفق).</div>
+    </div>
+  </div>
+
+  <div class="toast"></div>
+
+  <script type="module">
+    import { requireAuth } from "./assets/auth.js";
+    import { supabase } from "./assets/supabaseClient.js";
+    import { toast, qs } from "./assets/ui.js";
+
+    await requireAuth();
+    const sb = supabase();
+
+    const { data: user } = await sb.auth.getUser();
+    const uid = user?.user?.id;
+
+    const { data: adminRow } = await sb.from("platform_admins").select("user_id").eq("user_id", uid).maybeSingle();
+    if (!adminRow){
+      toast("ليس لديك صلاحية", "error");
+      setTimeout(()=> location.href="profile.html", 700);
+    }
+
+    async function load(){
+      const q = qs("#q").value.trim();
+      const st = qs("#status").value;
+
+      let query = sb.from("salons").select("id,name,slug,account_status,created_at,approved_at,disabled_at,image_url").order("created_at", { ascending:false }).limit(120);
+      if (q) query = query.ilike("name", `%${q}%`);
+      if (st) query = query.eq("account_status", st);
+
+      const { data, error } = await query;
+      if (error) return toast(error.message, "error");
+
+      const root = qs("#list");
+      if (!data || data.length === 0){
+        root.innerHTML = `<div class="muted">لا توجد نتائج.</div>`;
+        return;
+      }
+
+      root.innerHTML = data.map(s=>{
+        const img = s.image_url ? `<img class="card-img" src="${s.image_url}">` : `<div class="card-img center muted">بدون صورة</div>`;
+        return `
+          <div class="card card-pad" style="margin-bottom:10px">
+            <div class="grid grid-2">
+              <div>${img}</div>
+              <div>
+                <div class="row-between">
+                  <div style="font-weight:900">${s.name}</div>
+                  <span class="pill">${s.account_status || "—"}</span>
+                </div>
+                <div class="muted small">slug: ${s.slug}</div>
+                <div class="muted small">created: ${new Date(s.created_at).toLocaleString("ar-EG")}</div>
+                <div style="height:10px"></div>
+                <div class="row">
+                  <button class="btn btn-primary" data-approve="${s.id}">تفعيل</button>
+                  <button class="btn btn-danger" data-disable="${s.id}">تعطيل</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        `;
+      }).join("");
+
+      document.querySelectorAll("[data-approve]").forEach(btn=>{
+        btn.addEventListener("click", async ()=>{
+          const id = btn.getAttribute("data-approve");
+          const { error } = await sb.rpc("approve_salon", { p_salon_id: id });
+          if (error) return toast(error.message, "error");
+          toast("تم تفعيل الصالون وبدء التجربة");
+          load();
+        });
+      });
+
+      document.querySelectorAll("[data-disable]").forEach(btn=>{
+        btn.addEventListener("click", async ()=>{
+          const id = btn.getAttribute("data-disable");
+          const { error } = await sb.rpc("disable_salon", { p_salon_id: id });
+          if (error) return toast(error.message, "error");
+          toast("تم تعطيل الصالون");
+          load();
+        });
+      });
+    }
+
+    qs("#btnReload").addEventListener("click", load);
+    qs("#btnSearch").addEventListener("click", load);
+    load();
+  </script>
+</body>
+</html>

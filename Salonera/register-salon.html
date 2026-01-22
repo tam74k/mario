@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>تسجيل صالون</title>
+  <link rel="stylesheet" href="./assets/app.css" />
+</head>
+<body>
+  <div class="topbar">
+    <div class="container row-between" style="padding:14px 16px">
+      <div class="brand">تسجيل صالون</div>
+      <div class="row">
+        <a class="btn btn-link" href="register.html">رجوع</a>
+        <a class="btn" href="login.html">تسجيل الدخول</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="container">
+    <div class="hero">
+      <div style="font-weight:900;font-size:20px">سجّل صالونك</div>
+      <div class="muted">سيتم إنشاء الصالون بحالة <b>pending</b>. بعد موافقة الإدارة يبدأ فعليًا في الباقة التجريبية المحدودة.</div>
+    </div>
+
+    <div style="height:12px"></div>
+
+    <div class="grid grid-2">
+      <div class="card card-pad">
+        <div style="font-weight:900">بيانات الصالون</div>
+        <div class="hr"></div>
+
+        <label class="label">اسم الصالون</label>
+        <input id="salon_name" class="input" placeholder="مثال: صالون روز" />
+
+        <div style="height:10px"></div>
+        <label class="label">الدولة (Code)</label>
+        <input id="country_code" class="input" value="EG" />
+
+        <div style="height:10px"></div>
+        <label class="label">اللغة الافتراضية</label>
+        <select id="lang">
+          <option value="ar">عربي</option>
+          <option value="en">English</option>
+        </select>
+
+        <div style="height:10px"></div>
+        <label class="label">المنطقة الزمنية</label>
+        <input id="tz" class="input" value="Africa/Cairo" />
+
+        <div style="height:10px"></div>
+        <label class="label">اسم الفرع الرئيسي</label>
+        <input id="branch_name" class="input" value="الفرع الرئيسي" />
+      </div>
+
+      <div class="card card-pad">
+        <div style="font-weight:900">بيانات مالك الصالون</div>
+        <div class="hr"></div>
+
+        <label class="label">اسم المالك</label>
+        <input id="owner_name" class="input" />
+
+        <div style="height:10px"></div>
+        <label class="label">الهاتف</label>
+        <input id="owner_phone" class="input" placeholder="+20..." />
+
+        <div style="height:10px"></div>
+        <label class="label">البريد الإلكتروني</label>
+        <input id="email" class="input" type="email" placeholder="owner@email.com" />
+
+        <div style="height:10px"></div>
+        <label class="label">كلمة المرور</label>
+        <input id="password" class="input" type="password" placeholder="6 أحرف على الأقل" />
+
+        <div style="height:12px"></div>
+        <button id="btn" class="btn btn-primary" style="width:100%">تسجيل الصالون</button>
+
+        <div style="height:10px"></div>
+        <div class="small muted">
+          <b>مهم للأمان:</b> إنشاء الصالون (salon/branch/owner role) الأفضل يتم عبر Edge Function (Service Role).
+          الواجهة هنا جاهزة + ملف SQL يضيف نظام موافقة الإدارة وبدء التجربة عند التفعيل.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast"></div>
+
+  <script type="module">
+    import { supabase } from "./assets/supabaseClient.js";
+    import { toast, qs } from "./assets/ui.js";
+
+    const sb = supabase();
+
+    function slugify(s){
+      return (s||"").trim().toLowerCase().replace(/\s+/g,"-").replace(/[^a-z0-9\u0600-\u06FF\-]/g,"") + "-" + Math.random().toString(16).slice(2,6);
+    }
+
+    qs("#btn").addEventListener("click", async ()=>{
+      const salon_name = qs("#salon_name").value.trim();
+      const country_code = qs("#country_code").value.trim().toUpperCase();
+      const language_default = qs("#lang").value;
+      const timezone = qs("#tz").value.trim();
+      const branch_name = qs("#branch_name").value.trim() || "الفرع الرئيسي";
+
+      const owner_name = qs("#owner_name").value.trim();
+      const owner_phone = qs("#owner_phone").value.trim();
+      const email = qs("#email").value.trim();
+      const password = qs("#password").value;
+
+      if (!salon_name) return toast("اسم الصالون مطلوب", "error");
+      if (!owner_name) return toast("اسم المالك مطلوب", "error");
+      if (!email) return toast("الإيميل مطلوب", "error");
+      if (!password || password.length < 6) return toast("كلمة المرور لا تقل عن 6", "error");
+
+      const { data, error } = await sb.auth.signUp({ email, password, options:{ data:{ full_name: owner_name } } });
+      if (error) return toast(error.message, "error");
+      const uid = data.user?.id;
+
+      try{
+        const { data: salon, error: sErr } = await sb.from("salons").insert({
+          name: salon_name,
+          slug: slugify(salon_name),
+          country_code,
+          language_default,
+          timezone,
+          account_status: "pending"
+        }).select("id").single();
+        if (sErr) throw sErr;
+
+        const { error: bErr } = await sb.from("branches").insert({ salon_id: salon.id, name: branch_name, is_active:true });
+        if (bErr) throw bErr;
+
+        await sb.from("profiles").upsert({ user_id: uid, salon_id: salon.id, full_name: owner_name, phone: owner_phone || null }, { onConflict:"user_id" });
+
+        try{ await sb.from("user_roles").insert({ user_id: uid, salon_id: salon.id, role:"owner" }); }catch{}
+
+        toast("تم تسجيل الصالون ✅ بانتظار الموافقة");
+        setTimeout(()=> location.href="waiting-approval.html", 900);
+      }catch(e){
+        toast("تم إنشاء حساب المالك لكن فشل إنشاء الصالون (يُنصح Edge Function): " + String(e?.message ?? e), "error");
+      }
+    });
+  </script>
+</body>
+</html>

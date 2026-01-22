@@ -1,0 +1,223 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>إعدادات الصالون</title>
+  <link rel="stylesheet" href="./assets/app.css" />
+</head>
+<body>
+  <div class="topbar">
+    <div class="container row-between" style="padding:14px 16px">
+      <div class="brand">إعدادات الصالون</div>
+      <div class="row">
+<a class="btn" href="dashboard.html">رجوع</a>
+<a class="btn" href="profile.html">البروفايل</a>
+</div>
+    </div>
+  </div>
+
+  <div class="container">
+    <div class="sidebar-layout">
+      <div class="card side">
+        <div style="font-weight:900;margin-bottom:6px">لوحة الصالون</div>
+        <div class="muted small" id="ctx"></div>
+        <div class="hr"></div>
+        <nav class="nav">
+          <a href="dashboard.html">الحجوزات</a>
+          <a href="services.html">الخدمات</a>
+          <a href="specialists.html">الأخصائيات</a>
+          <a class="active" href="settings.html">إعدادات الصالون</a>
+        </nav>
+      </div>
+
+      <div class="grid">
+        <div class="card card-pad">
+          <div style="font-weight:900">صورة الصالون</div>
+          <div class="muted small">سيتم رفعها إلى Storage bucket: <b>salon-images</b></div>
+          <div class="hr"></div>
+
+          <div id="salonImgWrap"></div>
+          <div style="height:10px"></div>
+          <input id="salonImg" class="input" type="file" accept="image/*">
+          <div style="height:10px"></div>
+          <button id="btnUploadSalon" class="btn btn-primary">رفع وحفظ</button>
+        </div>
+
+        <div class="card card-pad">
+          <div style="font-weight:900">إعدادات الحجز</div>
+          <div class="muted small">من DB: salon_settings</div>
+          <div class="hr"></div>
+
+          <div class="grid grid-2">
+            <div>
+              <label class="label">تأكيد تلقائي للحجوزات</label>
+              <select id="auto_confirm">
+                <option value="false">لا</option>
+                <option value="true">نعم</option>
+              </select>
+            </div>
+            <div>
+              <label class="label">الحد الأدنى قبل الموعد (ساعة)</label>
+              <input id="min_booking_hours" class="input" type="number" value="24">
+            </div>
+            <div>
+              <label class="label">الإلغاء/التعديل مسموح قبل (ساعة)</label>
+              <input id="cancel_before_hours" class="input" type="number" value="12">
+            </div>
+            <div>
+              <label class="label">خطوة السلاوت (دقيقة)</label>
+              <select id="slot_step_minutes">
+                <option>30</option><option>15</option><option>10</option><option>60</option>
+              </select>
+            </div>
+          </div>
+
+          <div style="height:12px"></div>
+          <button id="btnSaveSettings" class="btn btn-primary">حفظ الإعدادات</button>
+        </div>
+
+        <div class="card card-pad">
+          <div class="row-between">
+            <div>
+              <div style="font-weight:900">الفروع</div>
+              <div class="muted small">إضافة/إخفاء فروع</div>
+            </div>
+            <button class="btn" id="btnReloadBranches">تحديث</button>
+          </div>
+          <div class="hr"></div>
+
+          <div class="grid grid-2">
+            <div>
+              <label class="label">اسم الفرع</label>
+              <input id="branch_name" class="input" placeholder="مثال: فرع المعادي" />
+            </div>
+            <div>
+              <label class="label">المدينة</label>
+              <input id="branch_city" class="input" placeholder="مثال: القاهرة" />
+            </div>
+          </div>
+          <div style="height:12px"></div>
+          <button id="btnAddBranch" class="btn">إضافة فرع</button>
+
+          <div style="height:12px"></div>
+          <div id="branches"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { requireAuth, getUserKind } from "./assets/auth.js";
+    import { supabase } from "./assets/supabaseClient.js";
+    import { uploadImage } from "./assets/storage.js";
+    import { toast, qs } from "./assets/ui.js";
+
+    await requireAuth();
+    const sb = supabase();
+    const user = await getUserKind();
+    if (user.kind !== "staff"){ toast("هذه الصفحة للموظفين فقط", "error"); setTimeout(()=>location.href="profile.html",700); }
+    qs("#ctx").textContent = `مرحبًا ${user.full_name ?? ""}`;
+
+    async function loadSalon(){
+      const { data, error } = await sb.from("salons").select("id,name,image_url").eq("id", user.salon_id).single();
+      if (error) return toast(error.message, "error");
+      const img = data.image_url ? `<img class="card-img" src="${data.image_url}">` : `<div class="card-img center muted">بدون صورة</div>`;
+      qs("#salonImgWrap").innerHTML = img;
+    }
+
+    async function loadSettings(){
+      const { data, error } = await sb.from("salon_settings").select("*").eq("salon_id", user.salon_id).single();
+      if (error) return toast(error.message, "error");
+      qs("#auto_confirm").value = String(!!data.auto_confirm_bookings);
+      qs("#min_booking_hours").value = data.min_booking_hours;
+      qs("#cancel_before_hours").value = data.cancel_before_hours;
+      qs("#slot_step_minutes").value = data.slot_step_minutes;
+    }
+
+    qs("#btnUploadSalon").addEventListener("click", async ()=>{
+      const file = qs("#salonImg").files?.[0];
+      if (!file) return toast("اختر صورة", "error");
+      try{
+        const url = await uploadImage({ bucket:"salon-images", file, pathPrefix: `${user.salon_id}/` });
+        const { error } = await sb.from("salons").update({ image_url: url }).eq("id", user.salon_id);
+        if (error) return toast(error.message, "error");
+        toast("تم تحديث صورة الصالون");
+        loadSalon();
+      }catch(e){
+        toast(String(e?.message ?? e), "error");
+      }
+    });
+
+    qs("#btnSaveSettings").addEventListener("click", async ()=>{
+      const auto_confirm_bookings = qs("#auto_confirm").value === "true";
+      const min_booking_hours = Number(qs("#min_booking_hours").value || 24);
+      const cancel_before_hours = Number(qs("#cancel_before_hours").value || 12);
+      const slot_step_minutes = Number(qs("#slot_step_minutes").value || 30);
+
+      const { error } = await sb.from("salon_settings").upsert({
+        salon_id: user.salon_id,
+        auto_confirm_bookings,
+        min_booking_hours,
+        cancel_before_hours,
+        slot_step_minutes
+      }, { onConflict:"salon_id" });
+
+      if (error) return toast(error.message, "error");
+      toast("تم حفظ الإعدادات");
+    });
+
+    async function loadBranches(){
+      const { data, error } = await sb.from("branches")
+        .select("id,name,city,is_active")
+        .eq("salon_id", user.salon_id)
+        .order("created_at", { ascending:false });
+
+      if (error) return toast(error.message, "error");
+
+      qs("#branches").innerHTML = (data ?? []).map(b => `
+        <div class="card card-pad" style="margin-bottom:10px">
+          <div class="row-between">
+            <div style="font-weight:900">${b.name}</div>
+            <span class="pill">${b.is_active ? "نشط" : "مخفي"}</span>
+          </div>
+          <div class="muted small">${b.city ?? ""}</div>
+          <div style="height:10px"></div>
+          <button class="btn" data-toggle="${b.id}">${b.is_active ? "إخفاء" : "تفعيل"}</button>
+        </div>
+      `).join("") || `<div class="muted">لا توجد فروع.</div>`;
+
+      document.querySelectorAll("[data-toggle]").forEach(btn=>{
+        btn.addEventListener("click", async ()=>{
+          const id = btn.getAttribute("data-toggle");
+          const br = (data ?? []).find(x=>x.id===id);
+          const { error: uErr } = await sb.from("branches").update({ is_active: !br.is_active }).eq("id", id);
+          if (uErr) return toast(uErr.message, "error");
+          loadBranches();
+        });
+      });
+    }
+
+    qs("#btnAddBranch").addEventListener("click", async ()=>{
+      const name = qs("#branch_name").value.trim();
+      const city = qs("#branch_city").value.trim();
+      if (!name) return toast("اسم الفرع مطلوب", "error");
+
+      const { error } = await sb.from("branches").insert({ salon_id: user.salon_id, name, city: city || null, is_active:true });
+      if (error) return toast(error.message, "error");
+      toast("تمت إضافة الفرع");
+      qs("#branch_name").value = "";
+      qs("#branch_city").value = "";
+      loadBranches();
+    });
+
+    qs("#btnReloadBranches").addEventListener("click", loadBranches);
+
+    await loadSalon();
+    await loadSettings();
+    await loadBranches();
+  </script>
+  <div class="footer container">© PremiumVIP Booking — واجهة HTML/CSS/JS متصلة بـ Supabase</div>
+  <div class="toast"></div>
+</body>
+</html>

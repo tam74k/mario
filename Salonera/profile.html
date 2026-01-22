@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>الملف الشخصي</title>
+  <link rel="stylesheet" href="./assets/app.css" />
+</head>
+<body>
+  <div class="topbar">
+    <div class="container row-between" style="padding:14px 16px">
+      <div class="brand">حسابي</div>
+      <div class="row">
+<a class="btn" href="index.html">الرئيسية</a>
+<button id="btnLogout" class="btn btn-danger">تسجيل خروج</button>
+</div>
+    </div>
+  </div>
+
+  <div class="container">
+    <div class="sidebar-layout">
+      <div class="card side">
+        <div style="font-weight:900;margin-bottom:6px">الحساب</div>
+        <div class="muted small" id="who"></div>
+        <div class="hr"></div>
+        <nav class="nav">
+          <a class="active" href="profile.html">الملف الشخصي</a>
+          <a href="my-bookings.html" id="custLink" style="display:none">حجوزاتي</a>
+          <a href="dashboard.html" id="dashLink">لوحة التحكم</a>
+        </nav>
+      </div>
+
+      <div class="card card-pad">
+        <h2 style="margin:0 0 6px 0">الملف الشخصي</h2>
+        <div class="muted small">تعديل الاسم والبيانات الأساسية.</div>
+        <div class="hr"></div>
+
+        <div class="grid grid-2">
+          <div>
+            <label class="label">الاسم</label>
+            <input id="fullName" class="input" type="text" placeholder="اسمك" />
+          </div>
+          <div>
+            <label class="label">الهاتف</label>
+            <input id="phone" class="input" type="text" placeholder="+20..." />
+          </div>
+        </div>
+
+        <div style="height:12px"></div>
+        <button id="btnSave" class="btn btn-primary">حفظ</button>
+        <span class="small muted" id="status"></span>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { requireAuth, signOut, getUserKind } from "./assets/auth.js";
+    import { supabase } from "./assets/supabaseClient.js";
+    import { toast, qs } from "./assets/ui.js";
+
+    await requireAuth();
+    const sb = supabase();
+
+    const user = await getUserKind();
+    qs("#who").textContent = user.kind === "staff" ? "موظف/إدارة" : user.kind === "customer" ? "عميل" : "حساب";
+    if (user.kind === "customer") qs("#custLink").style.display = "block";
+
+    qs("#fullName").value = user.full_name ?? "";
+    qs("#phone").value = user.phone ?? "";
+
+    qs("#btnLogout").addEventListener("click", signOut);
+
+    qs("#btnSave").addEventListener("click", async () => {
+      const full_name = qs("#fullName").value.trim();
+      const phone = qs("#phone").value.trim();
+      if (!full_name) return toast("الاسم مطلوب", "error");
+
+      if (user.kind === "customer") {
+        const { error } = await sb.from("customers").update({ full_name, phone }).eq("user_id", user.user_id);
+        if (error) return toast(error.message, "error");
+      } else if (user.kind === "staff") {
+        const { error } = await sb.from("profiles").update({ full_name, phone }).eq("user_id", user.user_id);
+        if (error) return toast(error.message, "error");
+      } else {
+        const { error } = await sb.auth.updateUser({ data: { full_name } });
+        if (error) return toast(error.message, "error");
+      }
+
+      toast("تم الحفظ");
+      qs("#status").textContent = "✅ محفوظ";
+      setTimeout(()=> qs("#status").textContent="", 1500);
+    });
+  </script>
+  <div class="footer container">© PremiumVIP Booking — واجهة HTML/CSS/JS متصلة بـ Supabase</div>
+  <div class="toast"></div>
+</body>
+</html>

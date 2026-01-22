@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>حجوزاتي</title>
+  <link rel="stylesheet" href="./assets/app.css" />
+</head>
+<body>
+  <div class="topbar">
+    <div class="container row-between" style="padding:14px 16px">
+      <div class="brand">حجوزاتي</div>
+      <div class="row">
+<a class="btn" href="index.html">الرئيسية</a>
+<a class="btn" href="profile.html">حسابي</a>
+</div>
+    </div>
+  </div>
+
+  <div class="container">
+    <div class="card card-pad">
+      <div class="row-between">
+        <div>
+          <div style="font-weight:900;font-size:18px">حجوزاتي</div>
+          <div class="muted small">عرض الحجوزات القادمة والسابقة.</div>
+        </div>
+        <button class="btn" id="btnRefresh">تحديث</button>
+      </div>
+      <div class="hr"></div>
+      <div id="list"></div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { supabase } from "./assets/supabaseClient.js";
+    import { toast, qs, fmtDateTime } from "./assets/ui.js";
+    import { requireAuth } from "./assets/auth.js";
+
+    const sb = supabase();
+    await requireAuth();
+
+    async function load(){
+      const { data: auth } = await sb.auth.getUser();
+      const uid = auth?.user?.id;
+      if (!uid) return;
+
+      const { data, error } = await sb.from("bookings")
+        .select("id,status,start_at,end_at,salons(name),specialists(full_name)")
+        .eq("customer_id", uid)
+        .order("start_at", { ascending:false })
+        .limit(50);
+
+      if (error) return toast(error.message, "error");
+
+      const root = qs("#list");
+      if (!data || data.length === 0){
+        root.innerHTML = `<div class="muted">لا توجد حجوزات.</div>`;
+        return;
+      }
+
+      root.innerHTML = data.map(b => `
+        <div class="card card-pad" style="margin-bottom:10px">
+          <div class="row-between">
+            <div style="font-weight:900">${b.salons?.name ?? ""}</div>
+            <span class="pill">${b.status}</span>
+          </div>
+          <div class="muted small">الأخصائية: ${b.specialists?.full_name ?? ""}</div>
+          <div class="muted small">من: ${fmtDateTime(b.start_at)} → ${fmtDateTime(b.end_at)}</div>
+          <div style="height:10px"></div>
+          <div class="row">
+            <button class="btn btn-danger" data-cancel="${b.id}">إلغاء</button>
+          </div>
+          <div class="small muted">الإلغاء مسموح قبل 12 ساعة (حسب إعدادات الصالون).</div>
+        </div>
+      `).join("");
+
+      // Cancel = update status to cancelled (DB trigger سيمنع خلال 12 ساعة)
+      document.querySelectorAll("[data-cancel]").forEach(btn=>{
+        btn.addEventListener("click", async ()=>{
+          const id = btn.getAttribute("data-cancel");
+          const { error: uErr } = await sb.from("bookings").update({ status:"cancelled" }).eq("id", id);
+          if (uErr) return toast(uErr.message, "error");
+          toast("تم إرسال طلب الإلغاء");
+          load();
+        });
+      });
+    }
+
+    qs("#btnRefresh").addEventListener("click", load);
+    load();
+  </script>
+  <div class="footer container">© PremiumVIP Booking — واجهة HTML/CSS/JS متصلة بـ Supabase</div>
+  <div class="toast"></div>
+</body>
+</html>

@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>الخدمات</title>
+  <link rel="stylesheet" href="./assets/app.css" />
+</head>
+<body>
+  <div class="topbar">
+    <div class="container row-between" style="padding:14px 16px">
+      <div class="brand">الخدمات</div>
+      <div class="row">
+<a class="btn" href="dashboard.html">رجوع</a>
+<a class="btn" href="profile.html">البروفايل</a>
+</div>
+    </div>
+  </div>
+
+  <div class="container">
+    <div class="sidebar-layout">
+      <div class="card side">
+        <div style="font-weight:900;margin-bottom:6px">لوحة الصالون</div>
+        <div class="muted small" id="ctx"></div>
+        <div class="hr"></div>
+        <nav class="nav">
+          <a href="dashboard.html">الحجوزات</a>
+          <a class="active" href="services.html">الخدمات</a>
+          <a href="specialists.html">الأخصائيات</a>
+          <a href="settings.html">إعدادات الصالون</a>
+        </nav>
+      </div>
+
+      <div class="grid">
+        <div class="card card-pad">
+          <div class="row-between">
+            <div>
+              <div style="font-weight:900">إضافة خدمة</div>
+              <div class="muted small">سعر + مدة + Buffer قبل/بعد</div>
+            </div>
+          </div>
+          <div class="hr"></div>
+
+          <div class="grid grid-2">
+            <div>
+              <label class="label">الاسم (عربي)</label>
+              <input id="name_ar" class="input" />
+            </div>
+            <div>
+              <label class="label">السعر</label>
+              <input id="price" class="input" type="number" step="0.01" />
+            </div>
+            <div>
+              <label class="label">المدة (دقيقة)</label>
+              <input id="dur" class="input" type="number" />
+            </div>
+            <div>
+              <label class="label">Buffer قبل (دقيقة)</label>
+              <input id="bb" class="input" type="number" value="0" />
+            </div>
+            <div>
+              <label class="label">Buffer بعد (دقيقة)</label>
+              <input id="ba" class="input" type="number" value="0" />
+            </div>
+          </div>
+
+          <div style="height:12px"></div>
+          <button id="btnAdd" class="btn btn-primary">إضافة</button>
+        </div>
+
+        <div class="card card-pad">
+          <div class="row-between">
+            <div style="font-weight:900">قائمة الخدمات</div>
+            <button class="btn" id="btnReload">تحديث</button>
+          </div>
+          <div class="hr"></div>
+          <div id="list"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { requireAuth, getUserKind } from "./assets/auth.js";
+    import { supabase } from "./assets/supabaseClient.js";
+    import { toast, qs } from "./assets/ui.js";
+
+    await requireAuth();
+    const sb = supabase();
+    const user = await getUserKind();
+    if (user.kind !== "staff"){ toast("هذه الصفحة للموظفين فقط", "error"); setTimeout(()=>location.href="profile.html",700); }
+
+    qs("#ctx").textContent = `مرحبًا ${user.full_name ?? ""}`;
+
+    async function load(){
+      const { data, error } = await sb.from("services")
+        .select("id,name_ar,price,duration_minutes,buffer_before_minutes,buffer_after_minutes,is_active")
+        .eq("salon_id", user.salon_id)
+        .order("created_at", { ascending:false });
+
+      if (error) return toast(error.message, "error");
+      qs("#list").innerHTML = (data ?? []).map(s => `
+        <div class="card card-pad" style="margin-bottom:10px">
+          <div class="row-between">
+            <div style="font-weight:900">${s.name_ar}</div>
+            <span class="pill">${s.is_active ? "نشطة" : "مخفية"}</span>
+          </div>
+          <div class="muted small">السعر: ${Number(s.price).toFixed(2)} • المدة: ${s.duration_minutes}د • قبل: ${s.buffer_before_minutes} • بعد: ${s.buffer_after_minutes}</div>
+          <div style="height:10px"></div>
+          <div class="row">
+            <button class="btn" data-toggle="${s.id}">${s.is_active ? "إخفاء" : "تفعيل"}</button>
+            <button class="btn btn-danger" data-del="${s.id}">حذف</button>
+          </div>
+        </div>
+      `).join("") || `<div class="muted">لا توجد خدمات.</div>`;
+
+      document.querySelectorAll("[data-toggle]").forEach(btn=>{
+        btn.addEventListener("click", async ()=>{
+          const id = btn.getAttribute("data-toggle");
+          const svc = (data ?? []).find(x=>x.id===id);
+          const { error: uErr } = await sb.from("services").update({ is_active: !svc.is_active }).eq("id", id);
+          if (uErr) return toast(uErr.message, "error");
+          load();
+        });
+      });
+      document.querySelectorAll("[data-del]").forEach(btn=>{
+        btn.addEventListener("click", async ()=>{
+          const id = btn.getAttribute("data-del");
+          const { error: dErr } = await sb.from("services").delete().eq("id", id);
+          if (dErr) return toast(dErr.message, "error");
+          load();
+        });
+      });
+    }
+
+    qs("#btnReload").addEventListener("click", load);
+
+    qs("#btnAdd").addEventListener("click", async ()=>{
+      const name_ar = qs("#name_ar").value.trim();
+      const price = Number(qs("#price").value);
+      const duration_minutes = Number(qs("#dur").value);
+      const buffer_before_minutes = Number(qs("#bb").value || 0);
+      const buffer_after_minutes = Number(qs("#ba").value || 0);
+      if (!name_ar) return toast("الاسم مطلوب", "error");
+      if (!price || price < 0) return toast("السعر غير صحيح", "error");
+      if (!duration_minutes || duration_minutes <= 0) return toast("المدة غير صحيحة", "error");
+
+      const { error } = await sb.from("services").insert({
+        salon_id: user.salon_id,
+        name_ar,
+        price,
+        duration_minutes,
+        buffer_before_minutes,
+        buffer_after_minutes,
+        is_active: true
+      });
+      if (error) return toast(error.message, "error");
+      toast("تمت إضافة الخدمة");
+      qs("#name_ar").value = "";
+      load();
+    });
+
+    load();
+  </script>
+  <div class="footer container">© PremiumVIP Booking — واجهة HTML/CSS/JS متصلة بـ Supabase</div>
+  <div class="toast"></div>
+</body>
+</html>

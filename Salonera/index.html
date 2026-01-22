@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>الصالونات</title>
+  <link rel="stylesheet" href="./assets/app.css" />
+</head>
+<body>
+  <div class="topbar">
+    <div class="container row-between" style="padding:14px 16px">
+      <div class="brand">PremiumVIP Booking</div>
+      <div class="row">
+<a class="btn" href="profile.html">حسابي</a>
+<a class="btn btn-primary" href="login.html">تسجيل الدخول</a>
+</div>
+    </div>
+  </div>
+
+  <div class="container">
+    <div class="hero">
+      <div style="font-weight:900;font-size:20px;margin-bottom:6px">احجز موعدك بسهولة</div>
+      <div class="muted">ابحث عن الصالون، اختر الخدمة والأخصائية، ثم حدّد الموعد.</div>
+      <div style="height:12px"></div>
+      <div class="grid grid-2">
+        <div>
+          <label class="label">بحث</label>
+          <input id="q" class="input" placeholder="ابحث باسم الصالون أو المدينة..." />
+        </div>
+        <div>
+          <label class="label">المدينة (اختياري)</label>
+          <input id="city" class="input" placeholder="مثال: القاهرة" />
+        </div>
+      </div>
+      <div style="height:12px"></div>
+      <button id="btnSearch" class="btn btn-primary">بحث</button>
+      <span class="small muted" style="margin-inline-start:10px">ملاحظة: يلزم إعداد بيانات الصالونات في قاعدة البيانات.</span>
+    </div>
+
+    <div style="height:14px"></div>
+
+    <div class="row-between">
+      <div style="font-weight:900">الصالونات</div>
+      <span class="pill" id="count">0</span>
+    </div>
+
+    <div style="height:10px"></div>
+
+    <div id="list" class="grid grid-3"></div>
+  </div>
+
+  <script type="module">
+    import { supabase } from "./assets/supabaseClient.js";
+    import { toast, qs } from "./assets/ui.js";
+
+    const sb = supabase();
+    const list = qs("#list");
+
+    function card(s){
+      const img = s.image_url ? `<img class="card-img" src="${s.image_url}" alt="صورة الصالون">` : `<div class="card-img center muted">بدون صورة</div>`;
+      return `
+        <a class="card card-pad" href="salon.html?slug=${encodeURIComponent(s.slug)}">
+          ${img}
+          <div style="height:10px"></div>
+          <div style="font-weight:900">${s.name}</div>
+          <div class="muted small">${s.country_code} • ${s.currency_code} • ${s.language_default.toUpperCase()}</div>
+          <div style="height:10px"></div>
+          <span class="pill">عرض التفاصيل والحجز</span>
+        </a>
+      `;
+    }
+
+    async function load(){
+      const q = qs("#q").value.trim();
+      const city = qs("#city").value.trim();
+
+      // Fetch salons (public listing)
+      let query = sb.from("salons").select("id,name,slug,country_code,currency_code,language_default,image_url").order("created_at", { ascending:false }).limit(60);
+
+      if (q) query = query.ilike("name", `%${q}%`);
+      // city موجود في branches (اختياري) - فلترة بسيطة عبر join غير متاحة مباشرة في supabase-js بدون view
+      // لذلك نتركها كتحسين لاحق أو نضيف view.
+
+      const { data, error } = await query;
+      if (error) return toast(error.message, "error");
+
+      qs("#count").textContent = String(data?.length ?? 0);
+      list.innerHTML = (data ?? []).map(card).join("");
+      if (!data || data.length === 0){
+        list.innerHTML = `<div class="card card-pad muted">لا توجد نتائج.</div>`;
+      }
+    }
+
+    qs("#btnSearch").addEventListener("click", load);
+    load();
+  </script>
+  <div class="footer container">© PremiumVIP Booking — واجهة HTML/CSS/JS متصلة بـ Supabase</div>
+  <div class="toast"></div>
+</body>
+</html>

@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>بانتظار الموافقة</title>
+  <link rel="stylesheet" href="./assets/app.css" />
+</head>
+<body>
+  <div class="topbar">
+    <div class="container row-between" style="padding:14px 16px">
+      <div class="brand">بانتظار الموافقة</div>
+      <div class="row">
+        <a class="btn" href="profile.html">البروفايل</a>
+        <a class="btn btn-link" href="index.html">الرئيسية</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="container full-height center">
+    <div class="auth-wrap card card-pad">
+      <h2 style="margin:0 0 6px 0">حساب الصالون قيد المراجعة</h2>
+      <div class="muted small">بعد موافقة الإدارة سيتم تفعيل الصالون وبدء الباقة التجريبية المحدودة.</div>
+      <div class="hr"></div>
+      <div class="muted small" id="status">جاري قراءة الحالة...</div>
+      <div style="height:12px"></div>
+      <button class="btn" id="btnRefresh">تحديث</button>
+      <div style="height:12px"></div>
+      <div class="small muted">إذا تم التفعيل ستنتقل تلقائيًا للداشببورد.</div>
+    </div>
+  </div>
+
+  <div class="toast"></div>
+
+  <script type="module">
+    import { requireAuth, getUserKind } from "./assets/auth.js";
+    import { supabase } from "./assets/supabaseClient.js";
+    import { toast, qs } from "./assets/ui.js";
+
+    await requireAuth();
+    const sb = supabase();
+    const u = await getUserKind();
+
+    async function check(){
+      try{
+        const { data, error } = await sb.from("salons").select("id,account_status").eq("id", u.salon_id).single();
+        if (error) throw error;
+        qs("#status").textContent = `الحالة الحالية: ${data.account_status || "غير معروف"}`;
+        if (data.account_status === "active"){
+          toast("تم تفعيل الصالون ✅");
+          setTimeout(()=> location.href="dashboard.html", 700);
+        }
+        if (data.account_status === "disabled"){
+          toast("تم تعطيل الصالون. تواصل مع الدعم.", "error");
+        }
+      }catch(e){
+        qs("#status").textContent = "تعذر قراءة الحالة (تحقق من إعداد قاعدة البيانات).";
+      }
+    }
+
+    qs("#btnRefresh").addEventListener("click", check);
+    check();
+  </script>
+</body>
+</html>

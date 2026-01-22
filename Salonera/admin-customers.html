@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>إدارة العملاء</title>
+  <link rel="stylesheet" href="./assets/app.css" />
+</head>
+<body>
+  <div class="topbar">
+    <div class="container row-between" style="padding:14px 16px">
+      <div class="brand">إدارة العملاء</div>
+      <div class="row"><a class="btn" href="admin.html">رجوع</a></div>
+    </div>
+  </div>
+
+  <div class="container">
+    <div class="card card-pad">
+      <div class="row-between">
+        <div>
+          <div style="font-weight:900">قائمة العملاء</div>
+          <div class="muted small">عرض بيانات أساسية.</div>
+        </div>
+        <button class="btn" id="btnReload">تحديث</button>
+      </div>
+      <div class="hr"></div>
+
+      <div class="grid grid-2">
+        <div>
+          <label class="label">بحث بالاسم</label>
+          <input id="q" class="input" placeholder="اسم العميل" />
+        </div>
+        <div>
+          <label class="label">بحث بالإيميل</label>
+          <input id="email" class="input" placeholder="name@email.com" />
+        </div>
+      </div>
+      <div style="height:10px"></div>
+      <button class="btn" id="btnSearch">بحث</button>
+
+      <div style="height:12px"></div>
+      <div id="list"></div>
+    </div>
+  </div>
+
+  <div class="toast"></div>
+
+  <script type="module">
+    import { requireAuth } from "./assets/auth.js";
+    import { supabase } from "./assets/supabaseClient.js";
+    import { toast, qs } from "./assets/ui.js";
+
+    await requireAuth();
+    const sb = supabase();
+
+    const { data: user } = await sb.auth.getUser();
+    const uid = user?.user?.id;
+
+    const { data: adminRow } = await sb.from("platform_admins").select("user_id").eq("user_id", uid).maybeSingle();
+    if (!adminRow){
+      toast("ليس لديك صلاحية", "error");
+      setTimeout(()=> location.href="profile.html", 700);
+    }
+
+    async function load(){
+      const q = qs("#q").value.trim();
+      const em = qs("#email").value.trim();
+
+      let query = sb.from("customers").select("user_id,full_name,email,phone,created_at").order("created_at", {ascending:false}).limit(200);
+      if (q) query = query.ilike("full_name", `%${q}%`);
+      if (em) query = query.ilike("email", `%${em}%`);
+
+      const { data, error } = await query;
+      if (error) return toast(error.message, "error");
+
+      const root = qs("#list");
+      if (!data || data.length === 0){
+        root.innerHTML = `<div class="muted">لا توجد نتائج.</div>`;
+        return;
+      }
+
+      root.innerHTML = data.map(c=>`
+        <div class="card card-pad" style="margin-bottom:10px">
+          <div class="row-between">
+            <div style="font-weight:900">${c.full_name}</div>
+            <span class="pill">${new Date(c.created_at).toLocaleDateString("ar-EG")}</span>
+          </div>
+          <div class="muted small">Email: ${c.email ?? ""}</div>
+          <div class="muted small">Phone: ${c.phone ?? ""}</div>
+        </div>
+      `).join("");
+    }
+
+    qs("#btnReload").addEventListener("click", load);
+    qs("#btnSearch").addEventListener("click", load);
+    load();
+  </script>
+</body>
+</html>

@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>إنشاء حساب عميل</title>
+  <link rel="stylesheet" href="./assets/app.css" />
+</head>
+<body>
+  <div class="topbar">
+    <div class="container row-between" style="padding:14px 16px">
+      <div class="brand">إنشاء حساب عميل</div>
+      <div class="row">
+        <a class="btn btn-link" href="register.html">رجوع</a>
+        <a class="btn" href="login.html">تسجيل الدخول</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="container full-height center">
+    <div class="auth-wrap card card-pad">
+      <h2 style="margin:0 0 6px 0">حساب عميل</h2>
+      <div class="muted small">أدخل بياناتك لإنشاء حساب الحجز.</div>
+      <div class="hr"></div>
+
+      <label class="label">الاسم</label>
+      <input id="full_name" class="input" />
+
+      <div style="height:10px"></div>
+      <label class="label">الهاتف</label>
+      <input id="phone" class="input" placeholder="+20..." />
+
+      <div style="height:10px"></div>
+      <label class="label">البريد الإلكتروني</label>
+      <input id="email" class="input" type="email" placeholder="name@email.com" />
+
+      <div style="height:10px"></div>
+      <label class="label">كلمة المرور</label>
+      <input id="password" class="input" type="password" placeholder="6 أحرف على الأقل" />
+
+      <div style="height:12px"></div>
+      <button id="btn" class="btn btn-primary" style="width:100%">إنشاء الحساب</button>
+      <div style="height:10px"></div>
+      <div class="small muted">يمكن إضافة سياسة الخصوصية لاحقًا.</div>
+    </div>
+  </div>
+
+  <div class="toast"></div>
+
+  <script type="module">
+    import { supabase } from "./assets/supabaseClient.js";
+    import { toast, qs } from "./assets/ui.js";
+
+    const sb = supabase();
+
+    qs("#btn").addEventListener("click", async ()=>{
+      const full_name = qs("#full_name").value.trim();
+      const phone = qs("#phone").value.trim();
+      const email = qs("#email").value.trim();
+      const password = qs("#password").value;
+
+      if (!full_name) return toast("الاسم مطلوب", "error");
+      if (!email) return toast("الإيميل مطلوب", "error");
+      if (!password || password.length < 6) return toast("كلمة المرور لا تقل عن 6", "error");
+
+      const { data, error } = await sb.auth.signUp({ email, password, options:{ data:{ full_name } } });
+      if (error) return toast(error.message, "error");
+
+      const uid = data.user?.id;
+      if (uid){
+        const { error: cErr } = await sb.from("customers").insert({ user_id: uid, full_name, phone: phone || null, email });
+        if (cErr) return toast("تم إنشاء الحساب لكن فشل إنشاء سجل العميل: " + cErr.message, "error");
+      }
+
+      toast("تم إنشاء حساب العميل ✅");
+      setTimeout(()=> location.href="my-bookings.html", 800);
+    });
+  </script>
+</body>
+</html>

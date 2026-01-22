@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>لوحة التحكم</title>
+  <link rel="stylesheet" href="./assets/app.css" />
+</head>
+<body>
+  <div class="topbar">
+    <div class="container row-between" style="padding:14px 16px">
+      <div class="brand">لوحة التحكم</div>
+      <div class="row">
+<a class="btn" href="profile.html">البروفايل</a>
+<a class="btn" href="index.html">الرئيسية</a>
+</div>
+    </div>
+  </div>
+
+  <div class="container">
+    <div class="sidebar-layout">
+      <div class="card side">
+        <div style="font-weight:900;margin-bottom:6px">لوحة الصالون</div>
+        <div class="muted small" id="ctx"></div>
+        <div class="hr"></div>
+        <nav class="nav">
+          <a class="active" href="dashboard.html">الحجوزات</a>
+          <a href="services.html">الخدمات</a>
+          <a href="specialists.html">الأخصائيات</a>
+          <a href="settings.html">إعدادات الصالون</a>
+        </nav>
+      </div>
+
+      <div class="grid">
+        <div class="card card-pad">
+          <div class="row-between">
+            <div>
+              <div style="font-weight:900">الحجوزات (آخر 50)</div>
+              <div class="muted small">فلترة بسيطة + تغيير الحالة عبر RPC (اختياري)</div>
+            </div>
+            <button class="btn" id="btnReload">تحديث</button>
+          </div>
+          <div class="hr"></div>
+          <div style="overflow:auto">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>العميل</th>
+                  <th>الأخصائية</th>
+                  <th>الوقت</th>
+                  <th>الحالة</th>
+                  <th>إجراء</th>
+                </tr>
+              </thead>
+              <tbody id="rows"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { requireAuth, getUserKind } from "./assets/auth.js";
+    import { supabase } from "./assets/supabaseClient.js";
+    import { toast, qs, fmtDateTime } from "./assets/ui.js";
+
+    await requireAuth();
+    const sb = supabase();
+
+    const user = await getUserKind();
+    if (user.kind !== "staff"){
+      toast("هذه الصفحة للموظفين/الإدارة فقط", "error");
+      setTimeout(()=> location.href="profile.html", 700);
+    }
+
+    qs("#ctx").textContent = `مرحبًا ${user.full_name ?? ""}`;
+
+    async function load(){
+      const salon_id = user.salon_id;
+      const { data, error } = await sb.from("bookings")
+        .select("id,status,start_at,end_at,customers(full_name),specialists(full_name)")
+        .eq("salon_id", salon_id)
+        .order("start_at", { ascending:false })
+        .limit(50);
+
+      if (error) return toast(error.message, "error");
+      const body = qs("#rows");
+      if (!data || data.length === 0){
+        body.innerHTML = `<tr><td colspan="5" class="muted">لا توجد حجوزات.</td></tr>`;
+        return;
+      }
+
+      body.innerHTML = data.map(b => `
+        <tr>
+          <td>${b.customers?.full_name ?? ""}</td>
+          <td>${b.specialists?.full_name ?? ""}</td>
+          <td class="small muted">${fmtDateTime(b.start_at)}</td>
+          <td><span class="pill">${b.status}</span></td>
+          <td>
+            <button class="btn" data-confirm="${b.id}">تأكيد</button>
+            <button class="btn btn-danger" data-cancel="${b.id}">إلغاء</button>
+          </td>
+        </tr>
+      `).join("");
+
+      document.querySelectorAll("[data-confirm]").forEach(btn=>{
+        btn.addEventListener("click", async ()=>{
+          const id = btn.getAttribute("data-confirm");
+          // خيار سريع: تحديث مباشر (أو RPC change_booking_status_and_queue_notifications)
+          const { error: uErr } = await sb.from("bookings").update({ status:"confirmed" }).eq("id", id);
+          if (uErr) return toast(uErr.message, "error");
+          toast("تم التأكيد");
+          load();
+        });
+      });
+      document.querySelectorAll("[data-cancel]").forEach(btn=>{
+        btn.addEventListener("click", async ()=>{
+          const id = btn.getAttribute("data-cancel");
+          const { error: uErr } = await sb.from("bookings").update({ status:"cancelled" }).eq("id", id);
+          if (uErr) return toast(uErr.message, "error");
+          toast("تم الإلغاء");
+          load();
+        });
+      });
+    }
+
+    qs("#btnReload").addEventListener("click", load);
+    load();
+  </script>
+  <div class="footer container">© PremiumVIP Booking — واجهة HTML/CSS/JS متصلة بـ Supabase</div>
+  <div class="toast"></div>
+</body>
+</html>

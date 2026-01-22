@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>إدارة المنصة</title>
+  <link rel="stylesheet" href="./assets/app.css" />
+</head>
+<body>
+  <div class="topbar">
+    <div class="container row-between" style="padding:14px 16px">
+      <div class="brand">إدارة المنصة</div>
+      <div class="row">
+        <a class="btn" href="profile.html">البروفايل</a>
+        <a class="btn" href="index.html">الرئيسية</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="container">
+    <div class="sidebar-layout">
+      <div class="card side">
+        <div style="font-weight:900;margin-bottom:6px">القائمة</div>
+        <div class="muted small" id="ctx">—</div>
+        <div class="hr"></div>
+        <nav class="nav">
+          <a class="active" href="admin.html">نظرة عامة</a>
+          <a href="admin-salons.html">الصالونات</a>
+          <a href="admin-customers.html">العملاء</a>
+        </nav>
+      </div>
+
+      <div class="grid">
+        <div class="card card-pad">
+          <div style="font-weight:900">ملخص سريع</div>
+          <div class="muted small">هذه الصفحات تعمل فقط لحسابات إدارة المنصة (platform_admins).</div>
+          <div class="hr"></div>
+          <div class="grid grid-3">
+            <div class="card card-pad">
+              <div class="muted small">إجمالي الصالونات</div>
+              <div style="font-weight:900;font-size:22px" id="salonsCount">—</div>
+            </div>
+            <div class="card card-pad">
+              <div class="muted small">بانتظار الموافقة</div>
+              <div style="font-weight:900;font-size:22px" id="pendingCount">—</div>
+            </div>
+            <div class="card card-pad">
+              <div class="muted small">إجمالي العملاء</div>
+              <div style="font-weight:900;font-size:22px" id="customersCount">—</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card card-pad">
+          <div style="font-weight:900">سريع</div>
+          <div class="hr"></div>
+          <div class="row">
+            <a class="btn btn-primary" href="admin-salons.html">إدارة الصالونات</a>
+            <a class="btn" href="admin-customers.html">إدارة العملاء</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast"></div>
+
+  <script type="module">
+    import { requireAuth } from "./assets/auth.js";
+    import { supabase } from "./assets/supabaseClient.js";
+    import { toast, qs } from "./assets/ui.js";
+
+    await requireAuth();
+    const sb = supabase();
+
+    const { data: user } = await sb.auth.getUser();
+    const uid = user?.user?.id;
+
+    const { data: adminRow } = await sb.from("platform_admins").select("user_id").eq("user_id", uid).maybeSingle();
+    if (!adminRow){
+      toast("ليس لديك صلاحية إدارة المنصة", "error");
+      setTimeout(()=> location.href="profile.html", 700);
+    }
+
+    qs("#ctx").textContent = "حساب إدارة منصة";
+
+    async function count(){
+      try{
+        const all = await sb.from("salons").select("id", { count:"exact", head:true });
+        const pend = await sb.from("salons").select("id", { count:"exact", head:true }).eq("account_status","pending");
+        const cust = await sb.from("customers").select("user_id", { count:"exact", head:true });
+        qs("#salonsCount").textContent = all.count ?? "—";
+        qs("#pendingCount").textContent = pend.count ?? "—";
+        qs("#customersCount").textContent = cust.count ?? "—";
+      }catch(e){}
+    }
+    count();
+  </script>
+</body>
+</html>

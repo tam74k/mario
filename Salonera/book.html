@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>الحجز</title>
+  <link rel="stylesheet" href="./assets/app.css" />
+</head>
+<body>
+  <div class="topbar">
+    <div class="container row-between" style="padding:14px 16px">
+      <div class="brand">الحجز</div>
+      <div class="row">
+<a class="btn" href="index.html">الرئيسية</a>
+<a class="btn" href="profile.html">حسابي</a>
+</div>
+    </div>
+  </div>
+
+  <div class="container">
+    <div class="card card-pad">
+      <div style="font-weight:900;font-size:18px">اختر الموعد</div>
+      <div class="muted small">الخطوة 1: اختر التاريخ ثم السلاوت. (مدة السلاوت 30 دقيقة)</div>
+      <div class="hr"></div>
+
+      <div class="grid grid-2">
+        <div>
+          <label class="label">التاريخ</label>
+          <input id="date" class="input" type="date" />
+          <div class="small muted" style="margin-top:6px">الحجز قبل الموعد بـ 24 ساعة على الأقل.</div>
+        </div>
+        <div>
+          <label class="label">ملاحظات (اختياري)</label>
+          <textarea id="notes" class="input" placeholder="أي ملاحظات للصالون..."></textarea>
+        </div>
+      </div>
+
+      <div style="height:12px"></div>
+
+      <button id="btnLoad" class="btn">عرض المواعيد المتاحة</button>
+      <div style="height:10px"></div>
+
+      <div id="slots" class="slot-grid"></div>
+
+      <div style="height:12px"></div>
+      <button id="btnConfirm" class="btn btn-primary" disabled>تأكيد الحجز</button>
+      <span class="small muted" id="hint"></span>
+    </div>
+  </div>
+
+  <script type="module">
+    import { supabase } from "./assets/supabaseClient.js";
+    import { FN_AVAILABILITY, FN_CREATE_BOOKING } from "./assets/config.js";
+    import { toast, qs } from "./assets/ui.js";
+    import { requireAuth } from "./assets/auth.js";
+
+    const sb = supabase();
+    await requireAuth(); // الحجز يتطلب تسجيل دخول
+
+    const params = new URLSearchParams(location.search);
+    const salon_id = params.get("salon_id");
+    const service_id = params.get("service_id");
+    const specialist_id = params.get("specialist_id");
+
+    if (!salon_id || !service_id || !specialist_id) toast("بيانات الحجز غير مكتملة", "error");
+
+    // default date = today+2 (to satisfy 24h rule)
+    const d = new Date(); d.setDate(d.getDate()+2);
+    qs("#date").valueAsDate = d;
+
+    let selected = null; // {start_at,end_at}
+
+    function renderSlots(slots){
+      const root = qs("#slots");
+      root.innerHTML = "";
+      selected = null;
+      qs("#btnConfirm").disabled = true;
+
+      if (!slots || slots.length === 0){
+        root.innerHTML = `<div class="muted">لا توجد مواعيد متاحة في هذا اليوم.</div>`;
+        return;
+      }
+
+      for (const s of slots){
+        const start = new Date(s.start_at);
+        const label = start.toLocaleTimeString("ar-EG", { hour:"2-digit", minute:"2-digit" });
+        const el = document.createElement("div");
+        el.className = "slot";
+        el.textContent = label;
+        el.title = `سعة متاحة: ${s.capacity_free ?? 1}`;
+        el.addEventListener("click", ()=>{
+          document.querySelectorAll(".slot.selected").forEach(x=>x.classList.remove("selected"));
+          el.classList.add("selected");
+          selected = { start_at: s.start_at, end_at: s.end_at };
+          qs("#btnConfirm").disabled = false;
+        });
+        root.appendChild(el);
+      }
+    }
+
+    async function loadSlots(){
+      const date = qs("#date").value;
+      if (!date) return toast("اختر التاريخ", "error");
+
+      // إذا لم تنشر Edge Function availability بعد، سنعرض رسالة
+      if (!FN_AVAILABILITY.includes("/functions/v1/availability")){
+        toast("لم يتم إعداد availability بعد. ضع رابط الدالة في config.js", "error");
+        return;
+      }
+
+      const { data: sess } = await sb.auth.getSession();
+      const token = sess.session?.access_token;
+
+      const resp = await fetch(FN_AVAILABILITY, {
+        method: "POST",
+        headers: {
+          "Content-Type":"application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          salon_id,
+          specialist_id,
+          date,
+          service_ids: [service_id]
+        })
+      });
+
+      const out = await resp.json();
+      if (!resp.ok) return toast(out.error || "تعذر تحميل المواعيد", "error");
+      renderSlots(out.slots);
+    }
+
+    async function createBooking(){
+      if (!selected) return toast("اختر سلاوت", "error");
+
+      if (!FN_CREATE_BOOKING.includes("/functions/v1/create-booking")){
+        toast("لم يتم إعداد create-booking بعد. ضع رابط الدالة في config.js", "error");
+        return;
+      }
+
+      const { data: sess } = await sb.auth.getSession();
+      const token = sess.session?.access_token;
+
+      const notes = qs("#notes").value.trim();
+
+      const resp = await fetch(FN_CREATE_BOOKING, {
+        method: "POST",
+        headers: {
+          "Content-Type":"application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          salon_id,
+          branch_id: (params.get("branch_id") || null), // اختياري (يمكن جعله إلزامي لاحقًا)
+          specialist_id,
+          start_at: selected.start_at,
+          items: [{ item_type:"service", id: service_id }],
+          notes
+        })
+      });
+
+      const out = await resp.json();
+      if (!resp.ok) return toast(out.error || out.details || "فشل إنشاء الحجز", "error");
+
+      toast("تم إنشاء الحجز (بانتظار التأكيد)");
+      setTimeout(()=> location.href="my-bookings.html", 800);
+    }
+
+    qs("#btnLoad").addEventListener("click", loadSlots);
+    qs("#btnConfirm").addEventListener("click", createBooking);
+  </script>
+  <div class="footer container">© PremiumVIP Booking — واجهة HTML/CSS/JS متصلة بـ Supabase</div>
+  <div class="toast"></div>
+</body>
+</html>
