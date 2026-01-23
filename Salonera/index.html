@@ -9,32 +9,33 @@
 <body>
   <div class="topbar">
     <div class="container row-between" style="padding:14px 16px">
-      <div class="brand">PremiumVIP Booking</div>
+      <div class="brand">Saloneara Bookings</div>
       <div class="row">
-<a class="btn" href="profile.html">حسابي</a>
-<a class="btn btn-primary" href="login.html">تسجيل الدخول</a>
-</div>
+        <a class="btn" href="profile.html">حسابي</a>
+        <a class="btn btn-primary" href="login.html">تسجيل الدخول</a>
+      </div>
     </div>
   </div>
 
   <div class="container">
     <div class="hero">
-      <div style="font-weight:900;font-size:20px;margin-bottom:6px">احجز موعدك بسهولة</div>
+      <div style="font-weight:900;font-size:22px;margin-bottom:6px">احجز موعدك بسهولة</div>
       <div class="muted">ابحث عن الصالون، اختر الخدمة والأخصائية، ثم حدّد الموعد.</div>
+
       <div style="height:12px"></div>
       <div class="grid grid-2">
         <div>
           <label class="label">بحث</label>
-          <input id="q" class="input" placeholder="ابحث باسم الصالون أو المدينة..." />
+          <input id="q" class="input" placeholder="ابحث باسم الصالون..." />
         </div>
         <div>
           <label class="label">المدينة (اختياري)</label>
           <input id="city" class="input" placeholder="مثال: القاهرة" />
         </div>
       </div>
+
       <div style="height:12px"></div>
       <button id="btnSearch" class="btn btn-primary">بحث</button>
-      <span class="small muted" style="margin-inline-start:10px">ملاحظة: يلزم إعداد بيانات الصالونات في قاعدة البيانات.</span>
     </div>
 
     <div style="height:14px"></div>
@@ -45,74 +46,114 @@
     </div>
 
     <div style="height:10px"></div>
-
     <div id="list" class="grid grid-3"></div>
   </div>
+
+  <div class="footer container">Saloneara Bookings</div>
+  <div class="toast"></div>
 
   <script type="module">
     import { sb } from "./assets/supabaseClient.js";
     import { toast, qs } from "./assets/ui.js";
 
-  
     const list = qs("#list");
+    let cached = [];
 
-   function card(s){
-  const img = s?.image_url
-    ? `<img class="card-img" src="${s.image_url}" alt="صورة الصالون">`
-    : `<div class="card-img center muted">بدون صورة</div>`;
+    function safeText(v){ return (v ?? "").toString().trim(); }
 
-  const name = s?.name ?? "صالون";
-  const slug = s?.slug ? encodeURIComponent(s.slug) : "#";
+    function card(s){
+      const img = s?.image_url
+        ? `<img class="card-img" src="${s.image_url}" alt="صورة الصالون">`
+        : `<div class="card-img center muted">بدون صورة</div>`;
 
-  const country = (s?.country_code ?? "").toString().toUpperCase() || "—";
-  const currency = (s?.currency_code ?? "").toString().toUpperCase() || "—";
-  const lang = (s?.language_default ?? "").toString().toUpperCase() || "—";
+      const name = safeText(s?.name) || "صالون";
+      const slug = s?.slug ? encodeURIComponent(s.slug) : "#";
 
-  return `
-    <a class="card card-pad" href="salon.html?slug=${slug}">
-      ${img}
-      <div style="height:10px"></div>
-      <div style="font-weight:900">${name}</div>
-      <div class="muted small">
-        ${country} • ${currency} • ${lang}
-      </div>
-      <div style="height:10px"></div>
-      <span class="pill">عرض التفاصيل والحجز</span>
-    </a>
-  `;
-}
+      // المطلوب: المحافظة ثم المدينة
+      const region = safeText(s?.region_name_ar);
+      const city = safeText(s?.city_name_ar);
+      const locationLine = [region, city].filter(Boolean).join(" • ") || "—";
 
+      // اختياري: العنوان + هاتف/واتساب (لو موجود)
+      const address = safeText(s?.address_line);
+      const phone = safeText(s?.phone);
+      const whatsapp = safeText(s?.whatsapp);
 
-    async function load(){
-      const q = qs("#q").value.trim();
-      const city = qs("#city").value.trim();
+      const contactLine =
+        (phone || whatsapp)
+          ? `${phone ? `هاتف: ${phone}` : ""}${phone && whatsapp ? " • " : ""}${whatsapp ? `واتساب: ${whatsapp}` : ""}`
+          : "";
 
-      // Fetch salons (public listing)
-     let query = sb
-  .from("salons")
-  .select("id,name,slug,country_code,currency_code,language_default,image_url")
-  .eq("account_status", "active")
-  .order("created_at", { ascending: false })
-  .limit(60);
+      return `
+        <a class="card card-pad" href="salon.html?slug=${slug}">
+          ${img}
+          <div style="height:10px"></div>
 
-      if (q) query = query.ilike("name", `%${q}%`);
-      // city موجود في branches (اختياري) - فلترة بسيطة عبر join غير متاحة مباشرة في supabase-js بدون view
-      // لذلك نتركها كتحسين لاحق أو نضيف view.
+          <!-- اسم الصالون أوضح -->
+          <div style="font-weight:900;font-size:18px;line-height:1.2">${name}</div>
 
-      const { data, error } = await query;
-      if (error) return toast(error.message, "error");
+          <div style="height:6px"></div>
 
-      qs("#count").textContent = String(data?.length ?? 0);
-      list.innerHTML = (data ?? []).map(card).join("");
-      if (!data || data.length === 0){
-        list.innerHTML = `<div class="card card-pad muted">لا توجد نتائج.</div>`;
-      }
+          <div class="muted small">${locationLine}</div>
+          ${address ? `<div class="muted small" style="margin-top:6px">${address}</div>` : ``}
+          ${contactLine ? `<div class="muted small" style="margin-top:6px">${contactLine}</div>` : ``}
+
+          <div style="height:10px"></div>
+          <span class="pill">عرض التفاصيل والحجز</span>
+        </a>
+      `;
     }
 
-    qs("#btnSearch").addEventListener("click", load);
+    function applyFilters(){
+      const q = safeText(qs("#q").value).toLowerCase();
+      const cityQ = safeText(qs("#city").value).toLowerCase();
+
+      let rows = cached.slice();
+
+      if (q){
+        rows = rows.filter(s => safeText(s.name).toLowerCase().includes(q));
+      }
+
+      // فلترة المدينة (على المدينة أو المحافظة كمان)
+      if (cityQ){
+        rows = rows.filter(s => {
+          const city = safeText(s.city_name_ar).toLowerCase();
+          const region = safeText(s.region_name_ar).toLowerCase();
+          return city.includes(cityQ) || region.includes(cityQ);
+        });
+      }
+
+      qs("#count").textContent = String(rows.length);
+      list.innerHTML = rows.length ? rows.map(card).join("") : `<div class="card card-pad muted">لا توجد نتائج.</div>`;
+    }
+
+    async function load(){
+      // نقرأ من View عامة للعرض (أفضل لثبات البيانات وظهور كل الصالونات)
+      // لازم يكون عندك view: public.v_salons_public
+      const { data, error } = await sb
+        .from("v_salons_public")
+        .select("id,name,slug,image_url,account_status,region_name_ar,city_name_ar,address_line,phone,whatsapp,created_at")
+        .eq("account_status", "active")
+        .order("created_at", { ascending: false })
+        .limit(200);
+
+      if (error){
+        // رسالة للمستخدم بدون تفاصيل تقنية
+        toast("تعذر تحميل الصالونات الآن. حاول مرة أخرى.", "error");
+        return;
+      }
+
+      cached = data ?? [];
+      applyFilters();
+    }
+
+    qs("#btnSearch").addEventListener("click", applyFilters);
+
+    // تحسين تجربة: البحث عند الضغط Enter
+    qs("#q").addEventListener("keydown", (e)=>{ if (e.key === "Enter") applyFilters(); });
+    qs("#city").addEventListener("keydown", (e)=>{ if (e.key === "Enter") applyFilters(); });
+
     load();
   </script>
-  <div class="footer container">© PremiumVIP Booking — واجهة HTML/CSS/JS متصلة بـ Supabase</div>
-  <div class="toast"></div>
 </body>
 </html>
