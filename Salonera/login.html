@@ -7,127 +7,161 @@
   <link rel="stylesheet" href="./assets/app.css" />
 </head>
 <body>
-  <div class="topbar">
-    <div class="container row-between" style="padding:14px 16px">
-      <div class="brand">PremiumVIP Booking</div>
-      <span class="badge">Auth</span>
+
+<div class="topbar">
+  <div class="container row-between" style="padding:14px 16px">
+    <div class="brand">تسجيل الدخول</div>
+    <div class="row">
+      <a class="btn" href="index.html">الرئيسية</a>
+      <a class="btn btn-link" href="register.html">إنشاء حساب</a>
     </div>
   </div>
+</div>
 
-  <div class="container full-height center">
-    <div class="auth-wrap card card-pad">
-      <div class="row-between" style="align-items:flex-end">
-        <div>
-          <h2 style="margin:0 0 6px 0">تسجيل الدخول</h2>
-          <div class="muted small">اختر نوع الدخول ثم أدخل بياناتك.</div>
-        </div>
-        <a class="btn btn-link" href="register.html">إنشاء حساب</a>
-      </div>
+<div class="container full-height center">
+  <div class="auth-wrap card card-pad">
+    <h2 style="margin:0 0 6px 0">مرحبًا بك</h2>
+    <div class="muted small">اختر نوع الحساب ثم أدخل بيانات الدخول.</div>
 
-      <div class="hr"></div>
+    <div class="hr"></div>
 
-      <div class="row" style="gap:8px">
-        <button class="btn" id="tabCustomer">دخول عميل</button>
-        <button class="btn" id="tabSalon">دخول صالون/موظفين</button>
-        <button class="btn" id="tabAdmin">دخول إدارة المنصة</button>
-      </div>
-      <div class="small muted" id="tabHint" style="margin-top:8px">الافتراضي: عميل.</div>
+    <div class="grid grid-2">
+      <button id="btnCustomer" class="btn btn-primary" type="button">دخول عميل</button>
+      <button id="btnStaff" class="btn" type="button">دخول صالون / موظفين</button>
+    </div>
 
-      <div style="height:12px"></div>
+    <div style="height:12px"></div>
 
-      <label class="label">البريد الإلكتروني</label>
-      <input id="email" class="input" type="email" placeholder="name@email.com" />
+    <label class="label">البريد الإلكتروني</label>
+    <input id="email" class="input" type="email" placeholder="name@email.com" autocomplete="email" />
 
-      <div style="height:10px"></div>
+    <div style="height:10px"></div>
 
-      <label class="label">كلمة المرور</label>
-      <input id="password" class="input" type="password" placeholder="••••••••" />
+    <label class="label">كلمة المرور</label>
+    <input id="password" class="input" type="password" placeholder="••••••••" autocomplete="current-password" />
 
-      <div style="height:10px"></div>
+    <div style="height:10px"></div>
 
-      <div class="row-between">
-        <label class="checkbox">
-          <input id="remember" type="checkbox" checked />
-          تذكرني
-        </label>
-        <a class="btn btn-link" href="forgot-password.html">نسيت كلمة المرور؟</a>
-      </div>
+    <label class="row" style="gap:10px;align-items:center">
+      <input id="remember" type="checkbox" />
+      <span class="small">تذكرني</span>
+    </label>
 
-      <div style="height:12px"></div>
+    <div style="height:12px"></div>
 
-      <button id="btnLogin" class="btn btn-primary" style="width:100%">دخول</button>
+    <button id="btnLogin" class="btn btn-primary" style="width:100%" type="button">دخول</button>
 
-      <div style="height:10px"></div>
-      <div class="small muted">
-        إذا كان حساب الصالون “بانتظار الموافقة” سيتم تحويلك لصفحة الانتظار.
-      </div>
+    <div style="height:10px"></div>
+    <div class="row-between">
+      <a class="btn btn-link" href="forgot-password.html">نسيت كلمة المرور؟</a>
+      <a class="btn btn-link" href="register.html">إنشاء حساب</a>
     </div>
   </div>
+</div>
 
-  <div class="toast"></div>
+<div class="footer container">Saloneara Bookings</div>
+<div class="toast"></div>
 
-  <script type="module">
-    import { sb } from "./assets/supabaseClient.js";
+<script type="module">
+  import { sb } from "./assets/supabaseClient.js";
+  import { toast, qs } from "./assets/ui.js";
+  import { getUserKind } from "./assets/auth.js";
 
-    import { toast, qs } from "./assets/ui.js";
-    import { getUserKind } from "./assets/auth.js";
+  // نوع الحساب المختار
+  let loginKind = "customer"; // customer | staff
 
-    
-    let target = "customer";
+  const btnCustomer = qs("#btnCustomer");
+  const btnStaff = qs("#btnStaff");
+  const btnLogin = qs("#btnLogin");
 
-    const hint = qs("#tabHint");
-    function setTab(t){
-      target = t;
-      const map = {
-        customer: "للدخول كعميل (حجوزاتك).",
-        salon: "للدخول كصالون/موظفين (الداشبورد).",
-        admin: "للدخول كإدارة المنصة (متابعة الصالونات والعملاء)."
-      };
-      hint.textContent = map[t] || map.customer;
+  function setKind(kind){
+    loginKind = kind;
+    if (kind === "customer") {
+      btnCustomer.classList.add("btn-primary");
+      btnCustomer.classList.remove("btn");
+      btnStaff.classList.add("btn");
+      btnStaff.classList.remove("btn-primary");
+    } else {
+      btnStaff.classList.add("btn-primary");
+      btnStaff.classList.remove("btn");
+      btnCustomer.classList.add("btn");
+      btnCustomer.classList.remove("btn-primary");
     }
+  }
 
-    qs("#tabCustomer").addEventListener("click", ()=>setTab("customer"));
-    qs("#tabSalon").addEventListener("click", ()=>setTab("salon"));
-    qs("#tabAdmin").addEventListener("click", ()=>setTab("admin"));
-    setTab("customer");
+  function setLoading(v){
+    btnLogin.disabled = v;
+    btnLogin.textContent = v ? "جارٍ تسجيل الدخول..." : "دخول";
+  }
 
-    qs("#btnLogin").addEventListener("click", async () => {
-      const email = qs("#email").value.trim();
-      const password = qs("#password").value;
-      const remember = qs("#remember").checked;
-      localStorage.setItem("pv_remember", remember ? "1" : "0");
-      if (!email || !password) return toast("أدخل البريد وكلمة المرور", "error");
+  btnCustomer.addEventListener("click", ()=> setKind("customer"));
+  btnStaff.addEventListener("click", ()=> setKind("staff"));
 
+  // افتراضي عميل
+  setKind("customer");
+
+  async function doLogin(){
+    const email = qs("#email").value.trim().toLowerCase();
+    const password = qs("#password").value;
+
+    if (!email) return toast("اكتب البريد الإلكتروني", "error");
+    if (!password) return toast("اكتب كلمة المرور", "error");
+
+    setLoading(true);
+
+    try {
       const { error } = await sb.auth.signInWithPassword({ email, password });
-      if (error) return toast(error.message, "error");
-
-      const u = await getUserKind();
-
-      let isAdmin = false;
-      try{
-        const { data: adminRow } = await sb.from("platform_admins").select("user_id").eq("user_id", u.user_id).maybeSingle();
-        isAdmin = !!adminRow;
-      }catch{}
-
-      if (target === "admin" && !isAdmin){
-        toast("هذا الحساب ليس إدارة منصة", "error");
+      if (error) {
+        toast("بيانات الدخول غير صحيحة", "error");
         return;
       }
 
-      if (target === "customer") return location.href = "my-bookings.html";
+      // بعد تسجيل الدخول: نحدد نوع المستخدم من بياناته
+      const userKind = await getUserKind();
 
-      if (target === "salon"){
-        try{
-          const { data: salon } = await sb.from("salons").select("id,account_status").eq("id", u.salon_id).single();
-          if (salon?.account_status && salon.account_status !== "active"){
-            return location.href = "waiting-approval.html";
-          }
-        }catch{}
-        return location.href = "dashboard.html";
+      // لو المستخدم اختار نوع غلط: نوجهه بشكل طبيعي بدون رسائل تقنية
+      if (loginKind === "customer" && userKind.kind !== "customer") {
+        toast("هذا الحساب ليس حساب عميل", "error");
+        await sb.auth.signOut();
+        return;
+      }
+      if (loginKind === "staff" && userKind.kind !== "staff") {
+        toast("هذا الحساب ليس حساب صالون/موظفين", "error");
+        await sb.auth.signOut();
+        return;
       }
 
-      if (target === "admin") return location.href = "admin.html";
-    });
-  </script>
+      // توجيه حسب النوع + حالة الصالون
+      if (userKind.kind === "staff") {
+        // تحقق من حالة الصالون
+        const { data: salon } = await sb
+          .from("salons")
+          .select("account_status")
+          .eq("id", userKind.salon_id)
+          .single();
+
+        if (salon?.account_status === "pending") {
+          location.href = "waiting-approval.html";
+        } else {
+          location.href = "dashboard.html";
+        }
+      } else {
+        location.href = "my-bookings.html";
+      }
+
+    } catch {
+      toast("تعذر تسجيل الدخول الآن. حاول مرة أخرى.", "error");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  btnLogin.addEventListener("click", doLogin);
+
+  // Enter key support
+  qs("#password").addEventListener("keydown", (e)=>{ if (e.key === "Enter") doLogin(); });
+  qs("#email").addEventListener("keydown", (e)=>{ if (e.key === "Enter") doLogin(); });
+</script>
+
 </body>
 </html>
