@@ -3,64 +3,68 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>بانتظار الموافقة</title>
+  <title>بانتظار التفعيل</title>
   <link rel="stylesheet" href="./assets/app.css" />
 </head>
 <body>
-  <div class="topbar">
-    <div class="container row-between" style="padding:14px 16px">
-      <div class="brand">بانتظار الموافقة</div>
-      <div class="row">
-        <a class="btn" href="profile.html">البروفايل</a>
-        <a class="btn btn-link" href="index.html">الرئيسية</a>
-      </div>
+
+<div class="topbar">
+  <div class="container row-between" style="padding:14px 16px">
+    <div class="brand">بانتظار التفعيل</div>
+    <div class="row">
+      <a class="btn" href="profile.html">حسابي</a>
+      <a class="btn btn-link" href="index.html">الرئيسية</a>
     </div>
   </div>
+</div>
 
-  <div class="container full-height center">
-    <div class="auth-wrap card card-pad">
-      <h2 style="margin:0 0 6px 0">حساب الصالون قيد المراجعة</h2>
-      <div class="muted small">بعد موافقة الإدارة سيتم تفعيل الصالون وبدء الباقة التجريبية المحدودة.</div>
-      <div class="hr"></div>
-      <div class="muted small" id="status">جاري قراءة الحالة...</div>
-      <div style="height:12px"></div>
-      <button class="btn" id="btnRefresh">تحديث</button>
-      <div style="height:12px"></div>
-      <div class="small muted">إذا تم التفعيل ستنتقل تلقائيًا للداشببورد.</div>
+<div class="container full-height center">
+  <div class="auth-wrap card card-pad">
+    <h2>حساب الصالون قيد المراجعة</h2>
+    <div class="muted small">
+      سيتم تفعيل حساب الصالون قريبًا بعد مراجعة البيانات.
     </div>
+
+    <div class="hr"></div>
+    <div id="status" class="muted small">جارٍ التحقق من الحالة...</div>
+
+    <div style="height:12px"></div>
+    <button class="btn" id="btnRefresh">تحديث</button>
   </div>
+</div>
 
-  <div class="toast"></div>
+<div class="footer container">Saloneara Bookings</div>
+<div class="toast"></div>
 
-  <script type="module">
-    import { requireAuth, getUserKind } from "./assets/auth.js";
-    import { sb } from "./assets/supabaseClient.js";
+<script type="module">
+  import { requireAuth, getUserKind } from "./assets/auth.js";
+  import { sb } from "./assets/supabaseClient.js";
+  import { toast, qs } from "./assets/ui.js";
 
-    import { toast, qs } from "./assets/ui.js";
+  await requireAuth();
+  const user = await getUserKind();
 
-    await requireAuth();
-    
-    const u = await getUserKind();
+  async function checkStatus(){
+    try{
+      const { data } = await sb.from("salons")
+        .select("account_status")
+        .eq("id", user.salon_id)
+        .single();
 
-    async function check(){
-      try{
-        const { data, error } = await sb.from("salons").select("id,account_status").eq("id", u.salon_id).single();
-        if (error) throw error;
-        qs("#status").textContent = `الحالة الحالية: ${data.account_status || "غير معروف"}`;
-        if (data.account_status === "active"){
-          toast("تم تفعيل الصالون ✅");
-          setTimeout(()=> location.href="dashboard.html", 700);
-        }
-        if (data.account_status === "disabled"){
-          toast("تم تعطيل الصالون. تواصل مع الدعم.", "error");
-        }
-      }catch(e){
-        qs("#status").textContent = "تعذر قراءة الحالة (تحقق من إعداد قاعدة البيانات).";
+      if (data?.account_status === "active"){
+        toast("تم تفعيل الصالون");
+        setTimeout(()=>location.href="dashboard.html",700);
+      } else {
+        qs("#status").textContent = "الحساب ما زال قيد المراجعة.";
       }
+    }catch{
+      qs("#status").textContent = "تعذر التحقق من الحالة الآن.";
     }
+  }
 
-    qs("#btnRefresh").addEventListener("click", check);
-    check();
-  </script>
+  qs("#btnRefresh").onclick = checkStatus;
+  checkStatus();
+</script>
+
 </body>
 </html>
