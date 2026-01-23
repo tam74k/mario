@@ -1,38 +1,63 @@
-import { supabase } from "./supabaseClient.js";
-import { toast } from "./ui.js";
+// assets/auth.js
+import { sb } from "./supabaseClient.js";
 
-export async function requireAuth({ redirectTo = "login.html" } = {}){
-  const sb = supabase();
-  const { data } = await sb.auth.getSession();
-  if (!data.session){
-    location.href = redirectTo;
+export async function requireAuth() {
+  const { data: { user } } = await sb.auth.getUser();
+  if (!user) {
+    location.href = "login.html";
     return null;
   }
-  return data.session;
+  return user;
 }
 
-export async function signOut(){
-  const sb = supabase();
-  await sb.auth.signOut();
-  toast("تم تسجيل الخروج");
-  setTimeout(()=> location.href = "login.html", 600);
-}
+/**
+ * يحدد نوع المستخدم:
+ * - staff: لو موجود في profiles ومعه salon_id
+ * - customer: لو موجود في customer_profiles
+ */
+export async function getUserKind() {
+  const { data: { user } } = await sb.auth.getUser();
+  if (!user) return { kind: "guest" };
 
-export async function getUserKind(){
-  const sb = supabase();
-  const { data: authData } = await sb.auth.getUser();
-  const uid = authData?.user?.id;
-  if (!uid) return { kind:"guest" };
+  // 1) هل هو موظف/صالون؟
+  try {
+    const { data: prof } = await sb
+      .from("profiles")
+      .select("user_id, full_name, salon_id")
+      .eq("user_id", user.id)
+      .single();
 
-  const cust = await sb.from("customers").select("user_id,full_name,email,phone").eq("user_id", uid).maybeSingle();
-  if (cust.data) return { kind:"customer", ...cust.data };
+    if (prof?.salon_id) {
+      return {
+        kind: "staff",
+        user_id: user.id,
+        full_name: prof.full_name || user.user_metadata?.full_name || "",
+        salon_id: prof.salon_id,
+      };
+    }
+  } catch { /* ignore */ }
 
-  const prof = await sb.from("profiles").select("user_id,full_name,phone,salon_id").eq("user_id", uid).maybeSingle();
-  if (prof.data) return { kind:"staff", ...prof.data };
+  // 2) هل هو عميل؟
+  try {
+    const { data: cust } = await sb
+      .from("customer_profiles")
+      .select("user_id, full_name")
+      .eq("user_id", user.id)
+      .single();
 
-  return { kind:"unknown", user_id: uid, full_name: authData.user.user_metadata?.full_name ?? "" };
-}
+    if (cust?.user_id) {
+      return {
+        kind: "customer",
+        user_id: user.id,
+        full_name: cust.full_name || user.user_metadata?.full_name || "",
+      };
+    }
+  } catch { /* ignore */ }
 
-export function isUuid(v){
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v);
+  // fallback
+  return {
+    kind: "customer",
+    user_id: user.id,
+    full_name: user.user_metadata?.full_name || "",
+  };
 }

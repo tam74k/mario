@@ -1,17 +1,16 @@
-import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
+// assets/supabaseClient.js
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from "./config.js";
 
-function getStorage() {
-  const remember = localStorage.getItem("pv_remember") !== "0";
-  return remember ? localStorage : sessionStorage;
-}
-
-// ✅ Singleton client (مرة واحدة فقط)
-export const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+// عميل واحد فقط (Singleton) لمنع تعدد GoTrueClient
+const client = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: {
     persistSession: true,
-    storage: getStorage(),
     autoRefreshToken: true,
     detectSessionInUrl: true,
   },
 });
+
+// تصديرين لتفادي أي تعارض بين الملفات القديمة والجديدة
+export const sb = client;
+export const supabase = client;
