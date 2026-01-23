@@ -57,23 +57,44 @@
     </div>
   </div>
 
+  <div class="footer container">Saloneara Bookings</div>
+  <div class="toast"></div>
+
   <script type="module">
     import { sb } from "./assets/supabaseClient.js";
     import { toast, qs } from "./assets/ui.js";
 
     const params = new URLSearchParams(location.search);
     const slug = params.get("slug");
-    if (!slug) toast("رابط غير صحيح", "error");
 
     function money(v){
       try { return Number(v).toFixed(2); }
       catch { return v ?? ""; }
     }
 
+    function safeUpper(v){
+      return (v ?? "").toString().toUpperCase() || "—";
+    }
+
     async function load(){
+      if (!slug){
+        toast("تعذر فتح الصفحة", "error");
+        return;
+      }
+
+      // جلب بيانات الصالون + بيانات التواصل/الموقع (إن وجدت)
       const { data: salon, error: sErr } = await sb
         .from("salons")
-        .select("id,name,slug,country_code,currency_code,language_default,timezone,vat_enabled,vat_rate,image_url")
+        .select(`
+          id,name,slug,image_url,timezone,vat_enabled,vat_rate,
+          country_code,currency_code,language_default,
+          salon_contacts(
+            address_line,phone,whatsapp,
+            country:countries(name_ar),
+            region:regions(name_ar),
+            city:cities(name_ar)
+          )
+        `)
         .eq("slug", slug)
         .single();
 
@@ -82,28 +103,46 @@
         return;
       }
 
-      // 🔒 تأمين القيم
-      const country = (salon.country_code ?? "").toString().toUpperCase() || "—";
-      const currency = (salon.currency_code ?? "").toString().toUpperCase() || "—";
-      const lang = (salon.language_default ?? "").toString().toUpperCase() || "—";
-      const timezone = salon.timezone ?? "—";
-
       const img = salon.image_url
         ? `<img class="card-img" src="${salon.image_url}" alt="صورة الصالون">`
         : `<div class="card-img center muted">بدون صورة</div>`;
+
+      const countryCode = safeUpper(salon.country_code);
+      const currency = safeUpper(salon.currency_code);
+      const lang = safeUpper(salon.language_default);
+      const timezone = salon.timezone ?? "—";
+
+      const contact = Array.isArray(salon.salon_contacts) ? salon.salon_contacts[0] : salon.salon_contacts;
+      const address = contact?.address_line || "";
+      const phone = contact?.phone || "";
+      const whatsapp = contact?.whatsapp || "";
+      const countryName = contact?.country?.name_ar || "";
+      const regionName = contact?.region?.name_ar || "";
+      const cityName = contact?.city?.name_ar || "";
+
+      const locationLine = [countryName, regionName, cityName].filter(Boolean).join(" • ");
+
+      const contactHtml = (address || phone || whatsapp || locationLine)
+        ? `
+          <div style="height:10px"></div>
+          <div class="muted small">
+            ${locationLine ? `<div>${locationLine}</div>` : ``}
+            ${address ? `<div>${address}</div>` : ``}
+            ${(phone || whatsapp) ? `<div>${phone ? `هاتف: ${phone}` : ``} ${phone && whatsapp ? ` • ` : ``} ${whatsapp ? `واتساب: ${whatsapp}` : ``}</div>` : ``}
+          </div>
+        `
+        : ``;
 
       qs("#salonCard").innerHTML = `
         <div class="grid grid-2">
           <div>${img}</div>
           <div>
             <div style="font-weight:900;font-size:20px">${salon.name ?? "صالون"}</div>
-            <div class="muted small">
-              ${country} • ${currency} • ${lang} • ${timezone}
-            </div>
+            <div class="muted small">${countryCode} • ${currency} • ${lang} • ${timezone}</div>
+            ${contactHtml}
             <div style="height:10px"></div>
             <span class="pill">
-              VAT:
-              ${
+              VAT: ${
                 salon.vat_enabled
                   ? ((Number(salon.vat_rate ?? 0) * 100).toFixed(0) + "%")
                   : "غير مفعل"
@@ -113,9 +152,7 @@
         </div>
       `;
 
-      // ======================
       // الخدمات
-      // ======================
       const { data: services, error: seErr } = await sb
         .from("services")
         .select("id,name_ar,price,duration_minutes,is_active")
@@ -132,16 +169,12 @@
         ? services.map(s => `
             <div class="card card-pad">
               <div style="font-weight:900">${s.name_ar ?? ""}</div>
-              <div class="muted small">
-                ${money(s.price)} • ${s.duration_minutes ?? 0} دقيقة
-              </div>
+              <div class="muted small">${money(s.price)} • ${s.duration_minutes ?? 0} دقيقة</div>
             </div>
           `).join("")
         : `<div class="muted">لا توجد خدمات.</div>`;
 
-      // ======================
       // الأخصائيات
-      // ======================
       const { data: specialists, error: spErr } = await sb
         .from("specialists")
         .select("id,full_name,title,capacity_per_hour,image_url,is_active")
@@ -172,16 +205,12 @@
           }).join("")
         : `<div class="muted">لا توجد أخصائيات.</div>`;
 
-      // ======================
-      // Selects
-      // ======================
+      // selects
       const serviceSelect = qs("#serviceSelect");
       const specialistSelect = qs("#specialistSelect");
 
       serviceSelect.innerHTML = (services ?? []).map(s =>
-        `<option value="${s.id}">
-          ${s.name_ar ?? ""} — ${money(s.price)} (${s.duration_minutes ?? 0}د)
-        </option>`
+        `<option value="${s.id}">${s.name_ar ?? ""} — ${money(s.price)} (${s.duration_minutes ?? 0}د)</option>`
       ).join("");
 
       specialistSelect.innerHTML = (specialists ?? []).map(s =>
@@ -200,8 +229,5 @@
 
     load();
   </script>
-
-  <div class="footer container">© Salonera Booking</div>
-  <div class="toast"></div>
 </body>
 </html>

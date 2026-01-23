@@ -20,9 +20,7 @@
   <div class="container">
     <div class="hero">
       <div style="font-weight:900;font-size:20px">سجّل صالونك</div>
-      <div class="muted">
-        سيتم إنشاء الصالون بحالة <b>pending</b>. بعد موافقة الإدارة يبدأ فعليًا في الباقة التجريبية المحدودة.
-      </div>
+      <div class="muted">بعد مراجعة البيانات سيتم تفعيل الصالون وبدء التجربة.</div>
     </div>
 
     <div style="height:12px"></div>
@@ -35,11 +33,41 @@
         <label class="label">اسم الصالون</label>
         <input id="salon_name" class="input" placeholder="مثال: صالون روز" />
 
-        <div style="height:10px"></div>
-        <label class="label">الدولة (Code)</label>
-        <input id="country_code" class="input" value="EG" />
+        <div class="hr"></div>
+
+        <div class="grid grid-2">
+          <div>
+            <label class="label">الدولة</label>
+            <select id="country_id"></select>
+          </div>
+          <div>
+            <label class="label">المحافظة / المنطقة</label>
+            <select id="region_id"></select>
+          </div>
+        </div>
 
         <div style="height:10px"></div>
+        <label class="label">المدينة</label>
+        <select id="city_id"></select>
+
+        <div style="height:10px"></div>
+        <label class="label">العنوان</label>
+        <input id="address_line" class="input" placeholder="مثال: شارع... مبنى..." />
+
+        <div style="height:10px"></div>
+        <div class="grid grid-2">
+          <div>
+            <label class="label">هاتف الصالون</label>
+            <input id="salon_phone" class="input" placeholder="+20..." />
+          </div>
+          <div>
+            <label class="label">واتساب</label>
+            <input id="salon_whatsapp" class="input" placeholder="+20..." />
+          </div>
+        </div>
+
+        <div class="hr"></div>
+
         <label class="label">اللغة الافتراضية</label>
         <select id="lang">
           <option value="ar">عربي</option>
@@ -76,24 +104,21 @@
 
         <div style="height:12px"></div>
         <button id="btn" class="btn btn-primary" style="width:100%">تسجيل الصالون</button>
-
-        <div style="height:10px"></div>
-        <div class="small muted" id="hint">
-          سيتم إنشاء الحساب والصالون عبر خدمة آمنة (Edge Function).
-        </div>
       </div>
     </div>
   </div>
 
+  <div class="footer container">Saloneara Bookings</div>
   <div class="toast"></div>
 
   <script type="module">
-   import { sb } from "./assets/supabaseClient.js";
-
+    import { sb } from "./assets/supabaseClient.js";
     import { toast, qs } from "./assets/ui.js";
-    //import { FN_REGISTER_SALON } from "./assets/config.js";
     import { FN_REGISTER_SALON, SUPABASE_ANON_KEY } from "./assets/config.js";
 
+    const $country = qs("#country_id");
+    const $region = qs("#region_id");
+    const $city = qs("#city_id");
 
     function setLoading(isLoading){
       const btn = qs("#btn");
@@ -101,76 +126,162 @@
       btn.textContent = isLoading ? "جارٍ التسجيل..." : "تسجيل الصالون";
     }
 
+    async function loadCountries(){
+      const { data, error } = await sb
+        .from("countries")
+        .select("id,code,name_ar,is_active")
+        .eq("is_active", true)
+        .order("name_ar", { ascending:true });
+
+      if (error || !data?.length){
+        toast("تعذر تحميل الدول", "error");
+        return;
+      }
+
+      $country.innerHTML = data.map(c => `<option value="${c.id}" data-code="${c.code}">${c.name_ar}</option>`).join("");
+
+      const eg = data.find(x => x.code === "EG");
+      if (eg) $country.value = eg.id;
+
+      await loadRegions();
+    }
+
+    async function loadRegions(){
+      const country_id = $country.value;
+      $region.innerHTML = `<option value="">جارٍ التحميل...</option>`;
+      $city.innerHTML = `<option value="">اختر المحافظة أولاً</option>`;
+
+      const { data, error } = await sb
+        .from("regions")
+        .select("id,name_ar,is_active")
+        .eq("country_id", country_id)
+        .eq("is_active", true)
+        .order("name_ar", { ascending:true });
+
+      if (error || !data?.length){
+        $region.innerHTML = `<option value="">لا توجد محافظات</option>`;
+        return;
+      }
+
+      $region.innerHTML = data.map(r => `<option value="${r.id}">${r.name_ar}</option>`).join("");
+      await loadCities();
+    }
+
+    async function loadCities(){
+      const region_id = $region.value;
+      if (!region_id){
+        $city.innerHTML = `<option value="">اختر المحافظة أولاً</option>`;
+        return;
+      }
+
+      $city.innerHTML = `<option value="">جارٍ التحميل...</option>`;
+
+      const { data, error } = await sb
+        .from("cities")
+        .select("id,name_ar,is_primary,is_active")
+        .eq("region_id", region_id)
+        .eq("is_active", true)
+        .order("is_primary", { ascending:false })
+        .order("name_ar", { ascending:true });
+
+      if (error || !data?.length){
+        $city.innerHTML = `<option value="">لا توجد مدن</option>`;
+        return;
+      }
+
+      $city.innerHTML = data.map(ci => `<option value="${ci.id}">${ci.name_ar}</option>`).join("");
+    }
+
+    $country.addEventListener("change", loadRegions);
+    $region.addEventListener("change", loadCities);
+
     qs("#btn").addEventListener("click", async ()=>{
       const salon_name = qs("#salon_name").value.trim();
-      const country_code = qs("#country_code").value.trim().toUpperCase();
       const language_default = qs("#lang").value;
       const timezone = qs("#tz").value.trim();
       const branch_name = qs("#branch_name").value.trim() || "الفرع الرئيسي";
 
+      const country_id = $country.value;
+      const region_id = $region.value;
+      const city_id = $city.value;
+
+      const address_line = qs("#address_line").value.trim();
+      const salon_phone = qs("#salon_phone").value.trim();
+      const salon_whatsapp = qs("#salon_whatsapp").value.trim();
+
       const owner_name = qs("#owner_name").value.trim();
       const owner_phone = qs("#owner_phone").value.trim();
-      const owner_email = qs("#email").value.trim();
+      const owner_email = qs("#email").value.trim().toLowerCase();
       const owner_password = qs("#password").value;
 
       if (!salon_name) return toast("اسم الصالون مطلوب", "error");
+      if (!country_id) return toast("اختر الدولة", "error");
+      if (!region_id) return toast("اختر المحافظة", "error");
+      if (!city_id) return toast("اختر المدينة", "error");
+
       if (!owner_name) return toast("اسم المالك مطلوب", "error");
       if (!owner_email) return toast("الإيميل مطلوب", "error");
-      if (!owner_password || owner_password.length < 6) return toast("كلمة المرور لا تقل عن 6", "error");
+      if (!owner_password || owner_password.length < 6) return toast("كلمة المرور لا تقل عن 6 أحرف", "error");
 
       if (!FN_REGISTER_SALON || FN_REGISTER_SALON.includes("YOUR_PROJECT_ID")){
-        return toast("عدّل assets/config.js وضع رابط مشروع Supabase ثم أعد المحاولة", "error");
+        return toast("تعذر إتمام العملية الآن", "error");
       }
 
       setLoading(true);
 
       try{
-        // 1) Call Edge Function to create: auth user + salon(pending) + branch + owner profile + role
         const res = await fetch(FN_REGISTER_SALON, {
-  method: "POST",
-  headers: {
-    "Content-Type": "application/json",
-    "apikey": SUPABASE_ANON_KEY,
-    "Authorization": `Bearer ${SUPABASE_ANON_KEY}`,
-  },
-  body: JSON.stringify({
-    salon_name,
-    country_code,
-    language_default,
-    timezone,
-    branch_name,
-    owner_name,
-    owner_phone: owner_phone || null,
-    owner_email,
-    owner_password
-  })
-});
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "apikey": SUPABASE_ANON_KEY,
+            "Authorization": `Bearer ${SUPABASE_ANON_KEY}`,
+          },
+          body: JSON.stringify({
+            salon_name,
+            language_default,
+            timezone,
+            branch_name,
+
+            country_id,
+            region_id,
+            city_id,
+            address_line: address_line || null,
+            salon_phone: salon_phone || null,
+            salon_whatsapp: salon_whatsapp || null,
+
+            owner_name,
+            owner_phone: owner_phone || null,
+            owner_email,
+            owner_password
+          })
+        });
 
         const out = await res.json().catch(()=> ({}));
-
         if (!res.ok){
-          return toast(out.error || "فشل تسجيل الصالون", "error");
+          return toast("تعذر تسجيل الصالون. حاول مرة أخرى.", "error");
         }
 
-        // 2) Login automatically
+        // تسجيل دخول تلقائي
         const { error: signErr } = await sb.auth.signInWithPassword({
           email: owner_email,
           password: owner_password
         });
+
         if (signErr){
-          toast("تم إنشاء الحساب لكن تعذر تسجيل الدخول تلقائيًا: " + signErr.message, "error");
-          return setTimeout(()=> location.href="login.html", 900);
+          toast("تم التسجيل. يمكنك تسجيل الدخول الآن.", "success");
+          return setTimeout(()=> location.href="login.html", 800);
         }
 
-        toast("تم تسجيل الصالون ✅ بانتظار الموافقة");
-        setTimeout(()=> location.href="waiting-approval.html", 900);
+        toast("تم تسجيل الصالون بنجاح");
+        setTimeout(()=> location.href="waiting-approval.html", 800);
 
-      }catch(e){
-        toast(String(e?.message ?? e), "error");
-      }finally{
+      } finally {
         setLoading(false);
       }
     });
+
+    loadCountries();
   </script>
 </body>
 </html>

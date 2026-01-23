@@ -38,43 +38,169 @@
       <label class="label">كلمة المرور</label>
       <input id="password" class="input" type="password" placeholder="6 أحرف على الأقل" />
 
+      <div class="hr"></div>
+
+      <div class="grid grid-2">
+        <div>
+          <label class="label">الدولة</label>
+          <select id="country_id"></select>
+        </div>
+        <div>
+          <label class="label">المحافظة / المنطقة</label>
+          <select id="region_id"></select>
+        </div>
+      </div>
+
+      <div style="height:10px"></div>
+      <label class="label">المدينة</label>
+      <select id="city_id"></select>
+
       <div style="height:12px"></div>
       <button id="btn" class="btn btn-primary" style="width:100%">إنشاء الحساب</button>
-      <div style="height:10px"></div>
-      <div class="small muted">يمكن إضافة سياسة الخصوصية لاحقًا.</div>
     </div>
   </div>
 
+  <div class="footer container">Saloneara Bookings</div>
   <div class="toast"></div>
 
   <script type="module">
     import { sb } from "./assets/supabaseClient.js";
-
     import { toast, qs } from "./assets/ui.js";
 
-    
+    const $country = qs("#country_id");
+    const $region = qs("#region_id");
+    const $city = qs("#city_id");
+    const $btn = qs("#btn");
+
+    function setLoading(v){
+      $btn.disabled = v;
+      $btn.textContent = v ? "جارٍ الإنشاء..." : "إنشاء الحساب";
+    }
+
+    async function loadCountries(){
+      const { data, error } = await sb
+        .from("countries")
+        .select("id,code,name_ar,is_active")
+        .eq("is_active", true)
+        .order("name_ar", { ascending:true });
+
+      if (error || !data?.length){
+        toast("تعذر تحميل الدول", "error");
+        return;
+      }
+
+      $country.innerHTML = data.map(c => `<option value="${c.id}" data-code="${c.code}">${c.name_ar}</option>`).join("");
+
+      // default: EG if exists
+      const eg = data.find(x => x.code === "EG");
+      if (eg) $country.value = eg.id;
+
+      await loadRegions();
+    }
+
+    async function loadRegions(){
+      const country_id = $country.value;
+      $region.innerHTML = `<option value="">جارٍ التحميل...</option>`;
+      $city.innerHTML = `<option value="">اختر المحافظة أولاً</option>`;
+
+      const { data, error } = await sb
+        .from("regions")
+        .select("id,name_ar,is_active")
+        .eq("country_id", country_id)
+        .eq("is_active", true)
+        .order("name_ar", { ascending:true });
+
+      if (error || !data?.length){
+        $region.innerHTML = `<option value="">لا توجد محافظات</option>`;
+        return;
+      }
+
+      $region.innerHTML = data.map(r => `<option value="${r.id}">${r.name_ar}</option>`).join("");
+      await loadCities();
+    }
+
+    async function loadCities(){
+      const region_id = $region.value;
+      if (!region_id){
+        $city.innerHTML = `<option value="">اختر المحافظة أولاً</option>`;
+        return;
+      }
+
+      $city.innerHTML = `<option value="">جارٍ التحميل...</option>`;
+      const { data, error } = await sb
+        .from("cities")
+        .select("id,name_ar,is_primary,is_active")
+        .eq("region_id", region_id)
+        .eq("is_active", true)
+        .order("is_primary", { ascending:false })
+        .order("name_ar", { ascending:true });
+
+      if (error || !data?.length){
+        $city.innerHTML = `<option value="">لا توجد مدن</option>`;
+        return;
+      }
+
+      $city.innerHTML = data.map(ci => `<option value="${ci.id}">${ci.name_ar}</option>`).join("");
+    }
+
+    $country.addEventListener("change", loadRegions);
+    $region.addEventListener("change", loadCities);
+
     qs("#btn").addEventListener("click", async ()=>{
       const full_name = qs("#full_name").value.trim();
       const phone = qs("#phone").value.trim();
-      const email = qs("#email").value.trim();
+      const email = qs("#email").value.trim().toLowerCase();
       const password = qs("#password").value;
+
+      const country_id = $country.value;
+      const region_id = $region.value;
+      const city_id = $city.value;
 
       if (!full_name) return toast("الاسم مطلوب", "error");
       if (!email) return toast("الإيميل مطلوب", "error");
-      if (!password || password.length < 6) return toast("كلمة المرور لا تقل عن 6", "error");
+      if (!password || password.length < 6) return toast("كلمة المرور لا تقل عن 6 أحرف", "error");
+      if (!country_id) return toast("اختر الدولة", "error");
+      if (!region_id) return toast("اختر المحافظة", "error");
+      if (!city_id) return toast("اختر المدينة", "error");
 
-      const { data, error } = await sb.auth.signUp({ email, password, options:{ data:{ full_name } } });
-      if (error) return toast(error.message, "error");
+      setLoading(true);
 
-      const uid = data.user?.id;
-      if (uid){
-        const { error: cErr } = await sb.from("customers").insert({ user_id: uid, full_name, phone: phone || null, email });
-        if (cErr) return toast("تم إنشاء الحساب لكن فشل إنشاء سجل العميل: " + cErr.message, "error");
+      try {
+        const { data, error } = await sb.auth.signUp({
+          email,
+          password,
+          options: { data: { full_name } }
+        });
+
+        if (error) {
+          return toast("تعذر إنشاء الحساب. تأكد من البيانات وحاول مرة أخرى.", "error");
+        }
+
+        const uid = data.user?.id;
+        if (uid){
+          const { error: pErr } = await sb.from("customer_profiles").insert({
+            user_id: uid,
+            full_name,
+            phone: phone || null,
+            email,
+            country_id,
+            region_id,
+            city_id
+          });
+
+          if (pErr){
+            return toast("تم إنشاء الحساب، لكن تعذر حفظ بيانات الموقع.", "error");
+          }
+        }
+
+        toast("تم إنشاء حساب العميل بنجاح");
+        setTimeout(()=> location.href="my-bookings.html", 700);
+      } finally {
+        setLoading(false);
       }
-
-      toast("تم إنشاء حساب العميل ✅");
-      setTimeout(()=> location.href="my-bookings.html", 800);
     });
+
+    loadCountries();
   </script>
 </body>
 </html>
