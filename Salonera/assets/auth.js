@@ -1,8 +1,8 @@
 // assets/auth.js
-import { sb } from "./supabaseClient.js";
+import { supabase } from "./supabaseClient.js";
 
 export async function requireAuth() {
-  const { data: { user } } = await sb.auth.getUser();
+  const { data: { user } } = await supabase.auth.getUser();
   if (!user) {
     location.href = "login.html";
     return null;
@@ -10,18 +10,13 @@ export async function requireAuth() {
   return user;
 }
 
-/**
- * يحدد نوع المستخدم:
- * - staff: لو موجود في profiles ومعه salon_id
- * - customer: لو موجود في customer_profiles
- */
 export async function getUserKind() {
-  const { data: { user } } = await sb.auth.getUser();
+  const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { kind: "guest" };
 
-  // 1) هل هو موظف/صالون؟
+  // staff?
   try {
-    const { data: prof } = await sb
+    const { data: prof } = await supabase
       .from("profiles")
       .select("user_id, full_name, salon_id")
       .eq("user_id", user.id)
@@ -35,11 +30,11 @@ export async function getUserKind() {
         salon_id: prof.salon_id,
       };
     }
-  } catch { /* ignore */ }
+  } catch {}
 
-  // 2) هل هو عميل؟
+  // customer?
   try {
-    const { data: cust } = await sb
+    const { data: cust } = await supabase
       .from("customer_profiles")
       .select("user_id, full_name")
       .eq("user_id", user.id)
@@ -52,9 +47,8 @@ export async function getUserKind() {
         full_name: cust.full_name || user.user_metadata?.full_name || "",
       };
     }
-  } catch { /* ignore */ }
+  } catch {}
 
-  // fallback
   return {
     kind: "customer",
     user_id: user.id,
