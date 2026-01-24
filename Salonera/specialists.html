@@ -111,17 +111,35 @@
   }
 
   async function uploadSpecialistImage(id, file){
-    const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
-    const path = `${user.salon_id}/${id}.${ext}`;
+  const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
 
-    await sb.storage.from(STAFF_BUCKET)
-      .upload(path, file, { upsert:true, contentType:file.type });
+  // اسم ثابت + مسار واضح
+  const path = `${user.salon_id}/${id}.${ext}`;
 
-    const { data } = sb.storage.from(STAFF_BUCKET).getPublicUrl(path);
-    await sb.from("specialists")
-      .update({ image_url:data.publicUrl })
-      .eq("id", id);
-  }
+  // 1) رفع الملف (مع التحقق من الخطأ)
+  const { error: upErr } = await sb.storage
+    .from(STAFF_BUCKET)
+    .upload(path, file, { upsert: true, contentType: file.type });
+
+  if (upErr) throw upErr;
+
+  // 2) بناء رابط public الصحيح (بدون الاعتماد على أي شيء قد يطلع غلط)
+  // ملاحظة: SUPABASE_URL موجود في config.js عندك
+  const { SUPABASE_URL } = await import("./assets/config.js");
+  const publicUrl = `${SUPABASE_URL}/storage/v1/object/public/${STAFF_BUCKET}/${path}`;
+
+  // 3) تحديث image_url في جدول specialists
+  const { error: dbErr } = await sb
+    .from("specialists")
+    .update({ image_url: publicUrl })
+    .eq("id", id)
+    .eq("salon_id", user.salon_id);
+
+  if (dbErr) throw dbErr;
+
+  return publicUrl;
+}
+
 
   function card(s){
     const img = s.image_url
