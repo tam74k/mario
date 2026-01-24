@@ -84,87 +84,109 @@
 
 <script type="module">
   import { requireAuth, getUserKind } from "./assets/auth.js";
-  import { sb } from "./assets/supabaseClient.js";
+  import { supabase as sb } from "./assets/supabaseClient.js";
   import { toast, qs } from "./assets/ui.js";
+  import { SUPABASE_URL } from "./assets/config.js";
 
   await requireAuth();
   const user = await getUserKind();
+
   if (user.kind !== "staff") {
     toast("غير مصرح بالدخول", "error");
-    setTimeout(()=>location.href="profile.html",700);
+    setTimeout(()=>location.href="profile.html", 700);
   }
 
   qs("#ctx").textContent = `مرحبًا ${user.full_name ?? ""}`;
 
   const STAFF_BUCKET = "staff";
 
+  function safeText(v){ return (v ?? "").toString().trim(); }
+
+  // يدعم حالتين:
+  // - image_url رابط كامل
+  // - image_url path داخل bucket
+  function toPublicImageUrl(v){
+    const x = safeText(v);
+    if (!x) return "";
+    if (x.startsWith("http://") || x.startsWith("https://")) return x;
+    return `${SUPABASE_URL}/storage/v1/object/public/${STAFF_BUCKET}/${x}`;
+  }
+
   async function loadBranches(){
-    const { data } = await sb
+    const { data, error } = await sb
       .from("branches")
       .select("id,name")
       .eq("salon_id", user.salon_id)
-      .eq("is_active", true);
+      .eq("is_active", true)
+      .order("created_at", { ascending: true });
 
-    qs("#branch").innerHTML = (data ?? [])
-      .map(b=>`<option value="${b.id}">${b.name}</option>`)
-      .join("");
+    if (error) {
+      toast("تعذر تحميل الفروع الآن", "error");
+      return;
+    }
+
+    const rows = data ?? [];
+    qs("#branch").innerHTML = rows.map(b=>`<option value="${b.id}">${b.name}</option>`).join("");
+
+    if (!rows.length) {
+      qs("#branch").innerHTML = `<option value="">لا يوجد فروع</option>`;
+    }
   }
 
+  // نرفع ثم نخزن PATH فقط (الأضمن)
   async function uploadSpecialistImage(id, file){
-  const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
+    const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
+    const path = `${user.salon_id}/${id}.${ext}`;
 
-  // اسم ثابت + مسار واضح
-  const path = `${user.salon_id}/${id}.${ext}`;
+    const { error: upErr } = await sb.storage
+      .from(STAFF_BUCKET)
+      .upload(path, file, { upsert: true, contentType: file.type });
 
-  // 1) رفع الملف (مع التحقق من الخطأ)
-  const { error: upErr } = await sb.storage
-    .from(STAFF_BUCKET)
-    .upload(path, file, { upsert: true, contentType: file.type });
+    if (upErr) throw upErr;
 
-  if (upErr) throw upErr;
+    const { error: dbErr } = await sb
+      .from("specialists")
+      .update({ image_url: path })
+      .eq("id", id)
+      .eq("salon_id", user.salon_id);
 
-  // 2) بناء رابط public الصحيح (بدون الاعتماد على أي شيء قد يطلع غلط)
-  // ملاحظة: SUPABASE_URL موجود في config.js عندك
-  const { SUPABASE_URL } = await import("./assets/config.js");
-  const publicUrl = `${SUPABASE_URL}/storage/v1/object/public/${STAFF_BUCKET}/${path}`;
+    if (dbErr) throw dbErr;
 
-  // 3) تحديث image_url في جدول specialists
-  const { error: dbErr } = await sb
-    .from("specialists")
-    .update({ image_url: publicUrl })
-    .eq("id", id)
-    .eq("salon_id", user.salon_id);
-
-  if (dbErr) throw dbErr;
-
-  return publicUrl;
-}
-
+    return path;
+  }
 
   function card(s){
-    const img = s.image_url
-      ? `<img class="card-img" style="aspect-ratio:1/1" src="${s.image_url}">`
+    const url = toPublicImageUrl(s.image_url);
+    const img = url
+      ? `<img class="card-img" style="aspect-ratio:1/1" src="${url}" alt="صورة">`
       : `<div class="card-img center muted" style="aspect-ratio:1/1">بدون صورة</div>`;
+
+    const statusPill = s.is_active
+      ? `<span class="pill">نشطة</span>`
+      : `<span class="pill">غير نشطة</span>`;
 
     return `
       <div class="card card-pad" style="margin-bottom:10px">
         <div class="grid grid-2">
           <div>${img}</div>
+
           <div>
             <div class="row-between">
-              <div style="font-weight:900">${s.full_name}</div>
-              <span class="pill">${s.is_active ? "نشطة" : "غير نشطة"}</span>
+              <div style="font-weight:900;font-size:18px;line-height:1.2">${safeText(s.full_name)}</div>
+              ${statusPill}
             </div>
-            <div class="muted small">${s.title ?? ""}</div>
-            <div class="muted small">سعة/ساعة: ${s.capacity_per_hour}</div>
+
+            <div class="muted small">${safeText(s.title)}</div>
+            <div class="muted small">سعة/ساعة: ${Number(s.capacity_per_hour || 1)}</div>
 
             <div style="height:10px"></div>
+
             <button class="btn" data-toggle="${s.id}">
               ${s.is_active ? "تعطيل" : "تفعيل"}
             </button>
 
-            <div style="height:10px"></div>
-            <label class="label">تحديث الصورة</label>
+            <div style="height:12px"></div>
+            <div style="font-weight:900;margin-bottom:6px">تحديث الصورة</div>
             <input class="input" type="file" data-file="${s.id}" accept="image/*">
             <div style="height:6px"></div>
             <button class="btn btn-primary" data-up="${s.id}">رفع وحفظ</button>
@@ -175,68 +197,131 @@
   }
 
   async function load(){
-    const { data } = await sb
+    const { data, error } = await sb
       .from("specialists")
-      .select("*")
+      .select("id,full_name,title,capacity_per_hour,is_active,image_url,created_at")
       .eq("salon_id", user.salon_id)
       .order("created_at", { ascending:false });
 
-    qs("#list").innerHTML = (data ?? []).map(card).join("") || `<div class="muted">لا توجد أخصائيات.</div>`;
+    if (error) {
+      qs("#list").innerHTML = `<div class="muted">تعذر تحميل القائمة الآن.</div>`;
+      return;
+    }
 
+    const rows = data ?? [];
+    qs("#list").innerHTML = rows.length ? rows.map(card).join("") : `<div class="muted">لا توجد أخصائيات.</div>`;
+
+    // تفعيل / تعطيل
     document.querySelectorAll("[data-toggle]").forEach(btn=>{
-      btn.onclick = async ()=>{
-        const id = btn.dataset.toggle;
-        const sp = data.find(x=>x.id===id);
-        await sb.from("specialists").update({ is_active: !sp.is_active }).eq("id", id);
-        toast("تم التحديث");
-        load();
-      };
+      btn.addEventListener("click", async ()=>{
+        const id = btn.getAttribute("data-toggle");
+        const sp = rows.find(x => x.id === id);
+        if (!sp) return;
+
+        btn.disabled = true;
+        const oldText = btn.textContent;
+        btn.textContent = "جارٍ التحديث...";
+
+        try{
+          const { error: upErr } = await sb
+            .from("specialists")
+            .update({ is_active: !sp.is_active })
+            .eq("id", id)
+            .eq("salon_id", user.salon_id);
+
+          if (upErr) throw upErr;
+
+          toast(!sp.is_active ? "تم التفعيل" : "تم التعطيل");
+          load();
+        }catch{
+          toast("تعذر تنفيذ العملية. حاول مرة أخرى.", "error");
+        }finally{
+          btn.disabled = false;
+          btn.textContent = oldText;
+        }
+      });
     });
 
+    // رفع الصورة
     document.querySelectorAll("[data-up]").forEach(btn=>{
-      btn.onclick = async ()=>{
-        const id = btn.dataset.up;
-        const file = document.querySelector(`[data-file="${id}"]`)?.files?.[0];
+      btn.addEventListener("click", async ()=>{
+        const id = btn.getAttribute("data-up");
+        const input = document.querySelector(`[data-file="${id}"]`);
+        const file = input?.files?.[0];
         if (!file) return toast("اختر صورة أولًا", "error");
+
+        btn.disabled = true;
+        const oldText = btn.textContent;
+        btn.textContent = "جارٍ الرفع...";
+
         try{
           await uploadSpecialistImage(id, file);
           toast("تم تحديث الصورة");
           load();
         }catch{
-          toast("تعذر رفع الصورة", "error");
+          toast("تعذر رفع الصورة. حاول مرة أخرى.", "error");
+        }finally{
+          btn.disabled = false;
+          btn.textContent = oldText;
+          if (input) input.value = "";
         }
-      };
+      });
     });
   }
 
-  qs("#btnAdd").onclick = async ()=>{
+  qs("#btnAdd").addEventListener("click", async ()=>{
     const full_name = qs("#full_name").value.trim();
     const branch_id = qs("#branch").value;
+    const cap = Number(qs("#cap").value || 1);
+
     if (!full_name || !branch_id) return toast("أكمل البيانات", "error");
+    if (!cap || cap < 1) return toast("السعة غير صحيحة", "error");
 
-    const { data } = await sb.from("specialists").insert({
-      salon_id:user.salon_id,
-      branch_id,
-      full_name,
-      title: qs("#title").value || null,
-      capacity_per_hour: Number(qs("#cap").value||1),
-      is_active:true
-    }).select("id").single();
+    const btn = qs("#btnAdd");
+    btn.disabled = true;
+    const oldText = btn.textContent;
+    btn.textContent = "جارٍ الإضافة...";
 
-    const file = qs("#img").files?.[0];
-    if (file) await uploadSpecialistImage(data.id, file);
+    try{
+      const { data, error } = await sb
+        .from("specialists")
+        .insert({
+          salon_id: user.salon_id,
+          branch_id,
+          full_name,
+          title: qs("#title").value?.trim() || null,
+          capacity_per_hour: cap,
+          is_active: true
+        })
+        .select("id")
+        .single();
 
-    toast("تمت الإضافة");
-    qs("#full_name").value = "";
-    qs("#title").value = "";
-    qs("#img").value = "";
-    load();
-  };
+      if (error || !data?.id) throw (error || new Error("failed"));
 
-  qs("#btnReload").onclick = load;
+      const file = qs("#img").files?.[0];
+      if (file) {
+        await uploadSpecialistImage(data.id, file);
+      }
+
+      toast("تمت الإضافة");
+      qs("#full_name").value = "";
+      qs("#title").value = "";
+      qs("#img").value = "";
+      qs("#cap").value = "1";
+      load();
+    }catch{
+      toast("تعذر إضافة الأخصائية. حاول مرة أخرى.", "error");
+    }finally{
+      btn.disabled = false;
+      btn.textContent = oldText;
+    }
+  });
+
+  qs("#btnReload").addEventListener("click", load);
 
   await loadBranches();
   load();
 </script>
+
 </body>
 </html>
