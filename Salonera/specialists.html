@@ -7,217 +7,218 @@
   <link rel="stylesheet" href="./assets/app.css" />
 </head>
 <body>
-  <div class="topbar">
-    <div class="container row-between" style="padding:14px 16px">
-      <div class="brand">الأخصائيات</div>
-      <div class="row">
-<a class="btn" href="dashboard.html">رجوع</a>
-<a class="btn" href="profile.html">البروفايل</a>
+
+<div class="topbar">
+  <div class="container row-between" style="padding:14px 16px">
+    <div class="brand">الأخصائيات</div>
+    <div class="row">
+      <a class="btn" href="dashboard.html">رجوع</a>
+      <a class="btn" href="profile.html">البروفايل</a>
+    </div>
+  </div>
 </div>
-    </div>
-  </div>
 
-  <div class="container">
-    <div class="sidebar-layout">
-      <div class="card side">
-        <div style="font-weight:900;margin-bottom:6px">لوحة الصالون</div>
-        <div class="muted small" id="ctx"></div>
+<div class="container">
+  <div class="sidebar-layout">
+    <div class="card side">
+      <div style="font-weight:900;margin-bottom:6px">لوحة الصالون</div>
+      <div class="muted small" id="ctx"></div>
+      <div class="hr"></div>
+      <nav class="nav">
+        <a href="dashboard.html">الحجوزات</a>
+        <a href="services.html">الخدمات</a>
+        <a class="active" href="specialists.html">الأخصائيات</a>
+        <a href="settings.html">إعدادات الصالون</a>
+      </nav>
+    </div>
+
+    <div class="grid">
+      <!-- إضافة أخصائية -->
+      <div class="card card-pad">
+        <div style="font-weight:900">إضافة أخصائية</div>
+        <div class="muted small">أدخل البيانات ثم اضغط إضافة.</div>
         <div class="hr"></div>
-        <nav class="nav">
-          <a href="dashboard.html">الحجوزات</a>
-          <a href="services.html">الخدمات</a>
-          <a class="active" href="specialists.html">الأخصائيات</a>
-          <a href="settings.html">إعدادات الصالون</a>
-        </nav>
+
+        <div class="grid grid-2">
+          <div>
+            <label class="label">الاسم</label>
+            <input id="full_name" class="input" />
+          </div>
+          <div>
+            <label class="label">المسمى (اختياري)</label>
+            <input id="title" class="input" />
+          </div>
+          <div>
+            <label class="label">الفرع</label>
+            <select id="branch"></select>
+          </div>
+          <div>
+            <label class="label">السعة / ساعة</label>
+            <input id="cap" class="input" type="number" value="1" min="1" max="10" />
+          </div>
+          <div>
+            <label class="label">صورة الأخصائية (اختياري)</label>
+            <input id="img" class="input" type="file" accept="image/*" />
+          </div>
+        </div>
+
+        <div style="height:12px"></div>
+        <button id="btnAdd" class="btn btn-primary">إضافة</button>
       </div>
 
-      <div class="grid">
-        <div class="card card-pad">
-          <div style="font-weight:900">إضافة أخصائية</div>
-          <div class="muted small">الاسم + الفرع + السعة/ساعة + صورة (اختياري)</div>
-          <div class="hr"></div>
-
-          <div class="grid grid-2">
-            <div>
-              <label class="label">الاسم</label>
-              <input id="full_name" class="input" />
-            </div>
-            <div>
-              <label class="label">المسمى (اختياري)</label>
-              <input id="title" class="input" />
-            </div>
-            <div>
-              <label class="label">الفرع</label>
-              <select id="branch"></select>
-            </div>
-            <div>
-              <label class="label">السعة/ساعة</label>
-              <input id="cap" class="input" type="number" value="1" min="1" max="10" />
-            </div>
-            <div>
-              <label class="label">صورة الأخصائية (اختياري)</label>
-              <input id="img" class="input" type="file" accept="image/*" />
-              <div class="small muted">سيتم رفعها إلى Storage bucket: <b>staff-images</b></div>
-            </div>
-          </div>
-
-          <div style="height:12px"></div>
-          <button id="btnAdd" class="btn btn-primary">إضافة</button>
+      <!-- القائمة -->
+      <div class="card card-pad">
+        <div class="row-between">
+          <div style="font-weight:900">قائمة الأخصائيات</div>
+          <button class="btn" id="btnReload">تحديث</button>
         </div>
-
-        <div class="card card-pad">
-          <div class="row-between">
-            <div style="font-weight:900">قائمة الأخصائيات</div>
-            <button class="btn" id="btnReload">تحديث</button>
-          </div>
-          <div class="hr"></div>
-          <div id="list"></div>
-        </div>
+        <div class="hr"></div>
+        <div id="list"></div>
       </div>
     </div>
   </div>
+</div>
 
-  <script type="module">
-    import { requireAuth, getUserKind } from "./assets/auth.js";
-    import { sb } from "./assets/supabaseClient.js";
+<div class="footer container">Saloneara Bookings</div>
+<div class="toast"></div>
 
-    import { uploadImage } from "./assets/storage.js";
-    import { toast, qs } from "./assets/ui.js";
+<script type="module">
+  import { requireAuth, getUserKind } from "./assets/auth.js";
+  import { sb } from "./assets/supabaseClient.js";
+  import { toast, qs } from "./assets/ui.js";
 
-    await requireAuth();
+  await requireAuth();
+  const user = await getUserKind();
+  if (user.kind !== "staff") {
+    toast("غير مصرح بالدخول", "error");
+    setTimeout(()=>location.href="profile.html",700);
+  }
 
-    const user = await getUserKind();
-    if (user.kind !== "staff"){ toast("هذه الصفحة للموظفين فقط", "error"); setTimeout(()=>location.href="profile.html",700); }
-    qs("#ctx").textContent = `مرحبًا ${user.full_name ?? ""}`;
+  qs("#ctx").textContent = `مرحبًا ${user.full_name ?? ""}`;
 
-    async function loadBranches(){
-      const { data, error } = await sb.from("branches").select("id,name").eq("salon_id", user.salon_id).eq("is_active", true);
-      if (error) return toast(error.message, "error");
-      qs("#branch").innerHTML = (data ?? []).map(b=>`<option value="${b.id}">${b.name}</option>`).join("");
-    }
+  const STAFF_BUCKET = "staff";
 
-    async function load(){
-      const { data, error } = await sb.from("specialists")
-        .select("id,full_name,title,capacity_per_hour,is_active,image_url,branches(name)")
-        .eq("salon_id", user.salon_id)
-        .order("created_at", { ascending:false });
+  async function loadBranches(){
+    const { data } = await sb
+      .from("branches")
+      .select("id,name")
+      .eq("salon_id", user.salon_id)
+      .eq("is_active", true);
 
-      if (error) return toast(error.message, "error");
+    qs("#branch").innerHTML = (data ?? [])
+      .map(b=>`<option value="${b.id}">${b.name}</option>`)
+      .join("");
+  }
 
-      qs("#list").innerHTML = (data ?? []).map(s => {
-        const img = s.image_url ? `<img class="card-img" style="aspect-ratio:1/1" src="${s.image_url}">` : `<div class="card-img center muted" style="aspect-ratio:1/1">بدون صورة</div>`;
-        return `
-          <div class="card card-pad" style="margin-bottom:10px">
-            <div class="grid grid-2">
-              <div>${img}</div>
-              <div>
-                <div class="row-between">
-                  <div style="font-weight:900">${s.full_name}</div>
-                  <span class="pill">${s.is_active ? "نشطة" : "مخفية"}</span>
-                </div>
-                <div class="muted small">${s.title ?? ""}</div>
-                <div class="muted small">الفرع: ${s.branches?.name ?? ""}</div>
-                <div style="height:8px"></div>
-                <span class="pill">سعة/ساعة: ${s.capacity_per_hour}</span>
-                <div style="height:10px"></div>
-                <div class="row">
-                  <button class="btn" data-toggle="${s.id}">${s.is_active ? "إخفاء" : "تفعيل"}</button>
-                  <button class="btn btn-danger" data-del="${s.id}">حذف</button>
-                </div>
-                <div style="height:8px"></div>
-                <label class="label">تحديث الصورة</label>
-                <input class="input" type="file" accept="image/*" data-file="${s.id}">
-                <div style="height:8px"></div>
-                <button class="btn" data-up="${s.id}">رفع وحفظ</button>
-              </div>
+  async function uploadSpecialistImage(id, file){
+    const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
+    const path = `${user.salon_id}/${id}.${ext}`;
+
+    await sb.storage.from(STAFF_BUCKET)
+      .upload(path, file, { upsert:true, contentType:file.type });
+
+    const { data } = sb.storage.from(STAFF_BUCKET).getPublicUrl(path);
+    await sb.from("specialists")
+      .update({ image_url:data.publicUrl })
+      .eq("id", id);
+  }
+
+  function card(s){
+    const img = s.image_url
+      ? `<img class="card-img" style="aspect-ratio:1/1" src="${s.image_url}">`
+      : `<div class="card-img center muted" style="aspect-ratio:1/1">بدون صورة</div>`;
+
+    return `
+      <div class="card card-pad" style="margin-bottom:10px">
+        <div class="grid grid-2">
+          <div>${img}</div>
+          <div>
+            <div class="row-between">
+              <div style="font-weight:900">${s.full_name}</div>
+              <span class="pill">${s.is_active ? "نشطة" : "غير نشطة"}</span>
             </div>
+            <div class="muted small">${s.title ?? ""}</div>
+            <div class="muted small">سعة/ساعة: ${s.capacity_per_hour}</div>
+
+            <div style="height:10px"></div>
+            <button class="btn" data-toggle="${s.id}">
+              ${s.is_active ? "تعطيل" : "تفعيل"}
+            </button>
+
+            <div style="height:10px"></div>
+            <label class="label">تحديث الصورة</label>
+            <input class="input" type="file" data-file="${s.id}" accept="image/*">
+            <div style="height:6px"></div>
+            <button class="btn btn-primary" data-up="${s.id}">رفع وحفظ</button>
           </div>
-        `;
-      }).join("") || `<div class="muted">لا توجد أخصائيات.</div>`;
+        </div>
+      </div>
+    `;
+  }
 
-      document.querySelectorAll("[data-toggle]").forEach(btn=>{
-        btn.addEventListener("click", async ()=>{
-          const id = btn.getAttribute("data-toggle");
-          const obj = (data ?? []).find(x=>x.id===id);
-          const { error: uErr } = await sb.from("specialists").update({ is_active: !obj.is_active }).eq("id", id);
-          if (uErr) return toast(uErr.message, "error");
-          load();
-        });
-      });
-      document.querySelectorAll("[data-del]").forEach(btn=>{
-        btn.addEventListener("click", async ()=>{
-          const id = btn.getAttribute("data-del");
-          const { error: dErr } = await sb.from("specialists").delete().eq("id", id);
-          if (dErr) return toast(dErr.message, "error");
-          load();
-        });
-      });
+  async function load(){
+    const { data } = await sb
+      .from("specialists")
+      .select("*")
+      .eq("salon_id", user.salon_id)
+      .order("created_at", { ascending:false });
 
-      document.querySelectorAll("[data-up]").forEach(btn=>{
-        btn.addEventListener("click", async ()=>{
-          const id = btn.getAttribute("data-up");
-          const input = document.querySelector(`[data-file="${id}"]`);
-          const file = input?.files?.[0];
-          if (!file) return toast("اختر صورة أولاً", "error");
-          try{
-            const url = await uploadImage({ bucket:"staff-images", file, pathPrefix: `${user.salon_id}/${id}/` });
-            const { error: uErr } = await sb.from("specialists").update({ image_url: url }).eq("id", id);
-            if (uErr) return toast(uErr.message, "error");
-            toast("تم تحديث الصورة");
-            load();
-          }catch(e){
-            toast(String(e?.message ?? e), "error");
-          }
-        });
-      });
-    }
+    qs("#list").innerHTML = (data ?? []).map(card).join("") || `<div class="muted">لا توجد أخصائيات.</div>`;
 
-    qs("#btnReload").addEventListener("click", load);
-
-    qs("#btnAdd").addEventListener("click", async ()=>{
-      const full_name = qs("#full_name").value.trim();
-      const title = qs("#title").value.trim();
-      const branch_id = qs("#branch").value;
-      const capacity_per_hour = Number(qs("#cap").value || 1);
-      const file = qs("#img").files?.[0] || null;
-
-      if (!full_name) return toast("الاسم مطلوب", "error");
-      if (!branch_id) return toast("اختر الفرع", "error");
-
-      // إنشاء الأخصائية أولًا
-      const { data: ins, error } = await sb.from("specialists").insert({
-        salon_id: user.salon_id,
-        branch_id,
-        full_name,
-        title: title || null,
-        capacity_per_hour,
-        is_active: true
-      }).select("id").single();
-
-      if (error) return toast(error.message, "error");
-
-      // رفع الصورة إن وُجدت
-      if (file){
-        try{
-          const url = await uploadImage({ bucket:"staff-images", file, pathPrefix: `${user.salon_id}/${ins.id}/` });
-          const { error: uErr } = await sb.from("specialists").update({ image_url: url }).eq("id", ins.id);
-          if (uErr) return toast(uErr.message, "error");
-        }catch(e){
-          toast("تمت الإضافة لكن فشل رفع الصورة: " + String(e?.message ?? e), "error");
-        }
-      }
-
-      toast("تمت إضافة الأخصائية");
-      qs("#full_name").value = "";
-      qs("#title").value = "";
-      qs("#img").value = "";
-      load();
+    document.querySelectorAll("[data-toggle]").forEach(btn=>{
+      btn.onclick = async ()=>{
+        const id = btn.dataset.toggle;
+        const sp = data.find(x=>x.id===id);
+        await sb.from("specialists").update({ is_active: !sp.is_active }).eq("id", id);
+        toast("تم التحديث");
+        load();
+      };
     });
 
-    await loadBranches();
+    document.querySelectorAll("[data-up]").forEach(btn=>{
+      btn.onclick = async ()=>{
+        const id = btn.dataset.up;
+        const file = document.querySelector(`[data-file="${id}"]`)?.files?.[0];
+        if (!file) return toast("اختر صورة أولًا", "error");
+        try{
+          await uploadSpecialistImage(id, file);
+          toast("تم تحديث الصورة");
+          load();
+        }catch{
+          toast("تعذر رفع الصورة", "error");
+        }
+      };
+    });
+  }
+
+  qs("#btnAdd").onclick = async ()=>{
+    const full_name = qs("#full_name").value.trim();
+    const branch_id = qs("#branch").value;
+    if (!full_name || !branch_id) return toast("أكمل البيانات", "error");
+
+    const { data } = await sb.from("specialists").insert({
+      salon_id:user.salon_id,
+      branch_id,
+      full_name,
+      title: qs("#title").value || null,
+      capacity_per_hour: Number(qs("#cap").value||1),
+      is_active:true
+    }).select("id").single();
+
+    const file = qs("#img").files?.[0];
+    if (file) await uploadSpecialistImage(data.id, file);
+
+    toast("تمت الإضافة");
+    qs("#full_name").value = "";
+    qs("#title").value = "";
+    qs("#img").value = "";
     load();
-  </script>
-  <div class="footer container">© PremiumVIP Booking — واجهة HTML/CSS/JS متصلة بـ Supabase</div>
-  <div class="toast"></div>
+  };
+
+  qs("#btnReload").onclick = load;
+
+  await loadBranches();
+  load();
+</script>
 </body>
 </html>
