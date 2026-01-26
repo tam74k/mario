@@ -42,10 +42,11 @@
         <div class="hr"></div>
 
         <div id="salonImgWrap"></div>
+
         <div style="height:10px"></div>
-        <input id="salonImg" type="file" accept="image/*" class="input">
+        <input id="salonImg" class="input" type="file" accept="image/*" />
         <div style="height:10px"></div>
-        <button id="btnUploadSalon" class="btn btn-primary">رفع الصورة</button>
+        <button id="btnUploadSalon" class="btn btn-primary">رفع وحفظ</button>
       </div>
 
       <!-- إعدادات الحجز -->
@@ -62,27 +63,57 @@
               <option value="true">نعم</option>
             </select>
           </div>
+
           <div>
             <label class="label">الحد الأدنى قبل الموعد (بالساعات)</label>
-            <input id="min_booking_hours" class="input" type="number">
+            <input id="min_booking_hours" class="input" type="number" value="24" min="0" />
           </div>
+
           <div>
             <label class="label">الإلغاء مسموح قبل (بالساعات)</label>
-            <input id="cancel_before_hours" class="input" type="number">
+            <input id="cancel_before_hours" class="input" type="number" value="12" min="0" />
           </div>
+
           <div>
             <label class="label">مدة الفاصل الزمني</label>
             <select id="slot_step_minutes">
-              <option>30</option>
-              <option>15</option>
-              <option>10</option>
-              <option>60</option>
+              <option value="30">30</option>
+              <option value="15">15</option>
+              <option value="10">10</option>
+              <option value="60">60</option>
             </select>
           </div>
         </div>
 
         <div style="height:12px"></div>
         <button id="btnSaveSettings" class="btn btn-primary">حفظ الإعدادات</button>
+      </div>
+
+      <!-- الفروع -->
+      <div class="card card-pad">
+        <div class="row-between">
+          <div style="font-weight:900">الفروع</div>
+          <button class="btn" id="btnReloadBranches">تحديث</button>
+        </div>
+        <div class="muted small">يمكنك إضافة فروع متعددة للصالون.</div>
+        <div class="hr"></div>
+
+        <div class="grid grid-2">
+          <div>
+            <label class="label">اسم الفرع</label>
+            <input id="branch_name" class="input" placeholder="مثال: الفرع الرئيسي" />
+          </div>
+          <div>
+            <label class="label">المدينة (اختياري)</label>
+            <input id="branch_city" class="input" placeholder="مثال: القاهرة" />
+          </div>
+        </div>
+
+        <div style="height:12px"></div>
+        <button id="btnAddBranch" class="btn btn-primary">إضافة فرع</button>
+
+        <div style="height:14px"></div>
+        <div id="branchesList"></div>
       </div>
 
     </div>
@@ -94,75 +125,209 @@
 
 <script type="module">
   import { requireAuth, getUserKind } from "./assets/auth.js";
-  import { sb } from "./assets/supabaseClient.js";
+  import { supabase as sb } from "./assets/supabaseClient.js";
   import { toast, qs } from "./assets/ui.js";
+  import { SUPABASE_URL } from "./assets/config.js";
 
   await requireAuth();
   const user = await getUserKind();
 
   if (user.kind !== "staff") {
-    toast("غير مصرح بالدخول لهذه الصفحة", "error");
+    toast("غير مصرح بالدخول", "error");
     setTimeout(()=>location.href="profile.html", 700);
   }
 
-  qs("#ctx").textContent = `مرحبًا ${user.full_name || ""}`;
+  qs("#ctx").textContent = `مرحبًا ${user.full_name ?? ""}`;
 
-  async function loadSalon(){
-    const { data } = await sb.from("salons")
-      .select("image_url")
-      .eq("id", user.salon_id)
-      .single();
+  const SALONS_BUCKET = "salons";
 
-    qs("#salonImgWrap").innerHTML = data?.image_url
-      ? `<img class="card-img" src="${data.image_url}">`
+  function safeText(v){ return (v ?? "").toString().trim(); }
+  function toPublicUrlFromValue(v){
+    const x = safeText(v);
+    if (!x) return "";
+    if (x.startsWith("http://") || x.startsWith("https://")) return x;
+    return `${SUPABASE_URL}/storage/v1/object/public/${SALONS_BUCKET}/${x}`;
+  }
+
+  function renderSalonImage(url){
+    qs("#salonImgWrap").innerHTML = url
+      ? `<img class="card-img" src="${url}" alt="صورة الصالون">`
       : `<div class="card-img center muted">بدون صورة</div>`;
   }
 
+  async function loadSalon(){
+    const { data, error } = await sb
+      .from("salons")
+      .select("id,name,image_url")
+      .eq("id", user.salon_id)
+      .single();
+
+    if (error) {
+      renderSalonImage("");
+      return;
+    }
+
+    renderSalonImage(toPublicUrlFromValue(data?.image_url));
+  }
+
   async function loadSettings(){
-    const { data } = await sb.from("salon_settings")
-      .select("*")
+    const { data } = await sb
+      .from("salon_settings")
+      .select("auto_confirm_bookings,min_booking_hours,cancel_before_hours,slot_step_minutes")
       .eq("salon_id", user.salon_id)
       .single();
 
     if (!data) return;
+
     qs("#auto_confirm").value = String(!!data.auto_confirm_bookings);
-    qs("#min_booking_hours").value = data.min_booking_hours;
-    qs("#cancel_before_hours").value = data.cancel_before_hours;
-    qs("#slot_step_minutes").value = data.slot_step_minutes;
+    qs("#min_booking_hours").value = data.min_booking_hours ?? 24;
+    qs("#cancel_before_hours").value = data.cancel_before_hours ?? 12;
+    qs("#slot_step_minutes").value = String(data.slot_step_minutes ?? 30);
   }
 
-  qs("#btnUploadSalon").onclick = async ()=>{
+  async function uploadSalonImage(file){
+    const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
+    const path = `${user.salon_id}/cover.${ext}`;
+
+    const { error: upErr } = await sb.storage
+      .from(SALONS_BUCKET)
+      .upload(path, file, { upsert: true, contentType: file.type });
+
+    if (upErr) throw upErr;
+
+    // نخزن الـ path فقط (الأضمن)
+    const { error: dbErr } = await sb
+      .from("salons")
+      .update({ image_url: path })
+      .eq("id", user.salon_id);
+
+    if (dbErr) throw dbErr;
+
+    return toPublicUrlFromValue(path);
+  }
+
+  qs("#btnUploadSalon").addEventListener("click", async ()=>{
+    const btn = qs("#btnUploadSalon");
     const file = qs("#salonImg").files?.[0];
-    if (!file) return toast("اختر صورة أولًا", "error");
+    if (!file) return toast("اختر صورة أولاً", "error");
+
+    btn.disabled = true;
+    const oldText = btn.textContent;
+    btn.textContent = "جارٍ الرفع...";
 
     try{
-      const path = `${user.salon_id}/cover.jpg`;
-      await sb.storage.from("salons").upload(path, file, { upsert:true });
-
-      const { data } = sb.storage.from("salons").getPublicUrl(path);
-      await sb.from("salons").update({ image_url:data.publicUrl }).eq("id", user.salon_id);
-
+      const url = await uploadSalonImage(file);
       toast("تم تحديث صورة الصالون");
-      loadSalon();
-    }catch{
-      toast("تعذر رفع الصورة، حاول مرة أخرى", "error");
+      renderSalonImage(url);
+      qs("#salonImg").value = "";
+    }catch(e){
+      toast("تعذر رفع الصورة. حاول مرة أخرى.", "error");
+      console.error("salon image upload error:", e);
+    }finally{
+      btn.disabled = false;
+      btn.textContent = oldText;
     }
-  };
+  });
 
-  qs("#btnSaveSettings").onclick = async ()=>{
-    await sb.from("salon_settings").upsert({
-      salon_id:user.salon_id,
-      auto_confirm_bookings: qs("#auto_confirm").value==="true",
-      min_booking_hours:Number(qs("#min_booking_hours").value),
-      cancel_before_hours:Number(qs("#cancel_before_hours").value),
-      slot_step_minutes:Number(qs("#slot_step_minutes").value),
-    },{ onConflict:"salon_id" });
+  qs("#btnSaveSettings").addEventListener("click", async ()=>{
+    const btn = qs("#btnSaveSettings");
+    btn.disabled = true;
+    const oldText = btn.textContent;
+    btn.textContent = "جارٍ الحفظ...";
 
-    toast("تم حفظ الإعدادات");
-  };
+    try{
+      const payload = {
+        salon_id: user.salon_id,
+        auto_confirm_bookings: qs("#auto_confirm").value === "true",
+        min_booking_hours: Number(qs("#min_booking_hours").value || 0),
+        cancel_before_hours: Number(qs("#cancel_before_hours").value || 0),
+        slot_step_minutes: Number(qs("#slot_step_minutes").value || 30),
+      };
 
-  loadSalon();
-  loadSettings();
+      const { error } = await sb.from("salon_settings").upsert(payload, { onConflict: "salon_id" });
+      if (error) throw error;
+
+      toast("تم حفظ الإعدادات");
+    }catch(e){
+      toast("تعذر حفظ الإعدادات. حاول مرة أخرى.", "error");
+      console.error("save settings error:", e);
+    }finally{
+      btn.disabled = false;
+      btn.textContent = oldText;
+    }
+  });
+
+  function branchCard(b){
+    const name = safeText(b.name) || "فرع";
+    const city = safeText(b.city);
+    const status = b.is_active ? "نشط" : "غير نشط";
+
+    return `
+      <div class="card card-pad" style="margin-bottom:10px">
+        <div class="row-between">
+          <div style="font-weight:900">${name}</div>
+          <span class="pill">${status}</span>
+        </div>
+        ${city ? `<div class="muted small" style="margin-top:6px">${city}</div>` : ``}
+      </div>
+    `;
+  }
+
+  async function loadBranches(){
+    const { data, error } = await sb
+      .from("branches")
+      .select("id,name,city,is_active,created_at")
+      .eq("salon_id", user.salon_id)
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      qs("#branchesList").innerHTML = `<div class="muted">تعذر تحميل الفروع الآن.</div>`;
+      return;
+    }
+
+    const rows = data ?? [];
+    qs("#branchesList").innerHTML = rows.length ? rows.map(branchCard).join("") : `<div class="muted">لا توجد فروع.</div>`;
+  }
+
+  qs("#btnAddBranch").addEventListener("click", async ()=>{
+    const name = qs("#branch_name").value.trim();
+    const city = qs("#branch_city").value.trim();
+
+    if (!name) return toast("اكتب اسم الفرع", "error");
+
+    const btn = qs("#btnAddBranch");
+    btn.disabled = true;
+    const oldText = btn.textContent;
+    btn.textContent = "جارٍ الإضافة...";
+
+    try{
+      const { error } = await sb.from("branches").insert({
+        salon_id: user.salon_id,
+        name,
+        city: city || null,
+        is_active: true
+      });
+      if (error) throw error;
+
+      toast("تمت إضافة الفرع");
+      qs("#branch_name").value = "";
+      qs("#branch_city").value = "";
+      loadBranches();
+    }catch(e){
+      toast("تعذر إضافة الفرع. حاول مرة أخرى.", "error");
+      console.error("add branch error:", e);
+    }finally{
+      btn.disabled = false;
+      btn.textContent = oldText;
+    }
+  });
+
+  qs("#btnReloadBranches").addEventListener("click", loadBranches);
+
+  await loadSalon();
+  await loadSettings();
+  await loadBranches();
 </script>
+
 </body>
 </html>
